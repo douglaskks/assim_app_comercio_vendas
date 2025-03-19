@@ -13,6 +13,13 @@ enum SignInStatus {
   idle,
 }
 
+enum LoginError {
+  userNotFound,
+  invalidPassword,
+  notSeller,
+  unknown
+}
+
 class SignInController with ChangeNotifier {
   final SignInRepository _repository = SignInRepository();
   String? email;
@@ -49,6 +56,28 @@ class SignInController with ChangeNotifier {
       status = SignInStatus.loading;
       notifyListeners();
 
+      // Verificar se o email tem um formato válido
+      if (!_isValidEmail(_emailController.text)) {
+        _showErrorDialog(
+          context,
+          'Email Inválido',
+          'Por favor, insira um endereço de email válido.',
+          LoginError.unknown
+        );
+        return;
+      }
+
+      // Verificar se a senha não está vazia
+      if (_passwordController.text.isEmpty) {
+        _showErrorDialog(
+          context, 
+          'Senha Vazia',
+          'Por favor, insira sua senha.',
+          LoginError.invalidPassword
+        );
+        return;
+      }
+
       var result = await _repository.signIn(
         email: _emailController.text,
         password: _passwordController.text,
@@ -66,39 +95,94 @@ class SignInController with ChangeNotifier {
         Navigator.pushReplacementNamed(context, Screens.addStore);
       } 
       else if (result == 3) {
-        showDialog(
-          context: context,
-          builder: (context) => DefaultAlertDialogOneButton(
-            title: 'Acesso Negado',
-            body: 'Este aplicativo é exclusivo para vendedores.',
-            confirmText: 'Voltar',
-            onConfirm: () => Get.back(),
-            buttonColor: kErrorColor,
-          )
+        _showErrorDialog(
+          context,
+          'Acesso Negado',
+          'Este aplicativo é exclusivo para vendedores.',
+          LoginError.notSeller
         );
-        status = SignInStatus.error;
-        setErrorMessage('Você não tem permissão para acessar este aplicativo.');
       } 
-      else {
-        showDialog(
-          context: context,
-          builder: (context) => DefaultAlertDialogOneButton(
-            title: 'Erro',
-            body: 'Credenciais inválidas, verifique seus dados',
-            confirmText: 'Voltar',
-            onConfirm: () => Get.back(),
-            buttonColor: kErrorColor,
-          )
+      else if (result == 4) {
+        _showErrorDialog(
+          context,
+          'Usuário Não Encontrado',
+          'O email informado não está cadastrado no sistema.',
+          LoginError.userNotFound
         );
-        status = SignInStatus.error;
-        setErrorMessage('Credenciais inválidas, verifique seus dados');
       }
-      notifyListeners();
+      else if (result == 5) {
+        _showErrorDialog(
+          context,
+          'Senha Incorreta',
+          'A senha informada está incorreta. Por favor, verifique e tente novamente.',
+          LoginError.invalidPassword
+        );
+      }
+      else {
+        // Erro genérico
+        _showErrorDialog(
+          context,
+          'Erro',
+          'Ocorreu um erro ao tentar fazer login. Verifique suas credenciais e tente novamente.',
+          LoginError.unknown
+        );
+      }
     } catch (e) {
-      status = SignInStatus.error;
-      setErrorMessage('Credenciais inválidas, verifique seus dados');
-      notifyListeners();
+      // Tenta inferir o tipo de erro a partir da exceção
+      if (e.toString().toLowerCase().contains('not found') || 
+          e.toString().toLowerCase().contains('email') ||
+          e.toString().toLowerCase().contains('usuário')) {
+        _showErrorDialog(
+          context,
+          'Usuário Não Encontrado',
+          'O email informado não está cadastrado no sistema.',
+          LoginError.userNotFound
+        );
+      } else if (e.toString().toLowerCase().contains('password') || 
+                e.toString().toLowerCase().contains('senha') ||
+                e.toString().toLowerCase().contains('invalid credentials')) {
+        _showErrorDialog(
+          context,
+          'Senha Incorreta',
+          'A senha informada está incorreta. Por favor, verifique e tente novamente.',
+          LoginError.invalidPassword
+        );
+      } else {
+        status = SignInStatus.error;
+        setErrorMessage('Erro ao tentar fazer login: ${e.toString()}');
+        notifyListeners();
+        
+        // Mostrar um erro genérico mais amigável para o usuário
+        _showErrorDialog(
+          context,
+          'Erro',
+          'Ocorreu um erro ao tentar fazer login. Verifique suas credenciais e tente novamente.',
+          LoginError.unknown
+        );
+      }
     }
+  }
+
+  // Verifica se o email tem um formato válido
+  bool _isValidEmail(String email) {
+    final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    return emailRegExp.hasMatch(email);
+  }
+
+  void _showErrorDialog(BuildContext context, String title, String message, LoginError errorType) {
+    showDialog(
+      context: context,
+      builder: (context) => DefaultAlertDialogOneButton(
+        title: title,
+        body: message,
+        confirmText: 'Voltar',
+        onConfirm: () => Get.back(),
+        buttonColor: kErrorColor,
+      )
+    );
+    
+    status = SignInStatus.error;
+    setErrorMessage(message);
   }
 
   void setErrorMessage(String value) async {
