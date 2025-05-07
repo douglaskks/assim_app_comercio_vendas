@@ -51,8 +51,14 @@ class _AddProductsScreenState
               'Adicionar produto',
               style: kTitle2.copyWith(color: Colors.white),
             ),
-            iconTheme:
-            const IconThemeData(color: Colors.white),
+            iconTheme: const IconThemeData(color: Colors.white),
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () {
+                // Navegação segura para não destruir a tela anterior
+                Navigator.of(context).pop();
+              },
+            ),
           ),
           body: Form(
             key: controller.formKey,

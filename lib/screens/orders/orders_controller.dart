@@ -313,9 +313,13 @@ class OrdersController extends GetxController {
   }
 
   List<ProdutoPedidoModel> getItensDoPedido(int pedidoId) {
-    var pedido = orders.firstWhere((order) => order.id == pedidoId,
-        orElse: () => PedidoModel(consumidorId: pedidoModel!.consumidorId));
-    return pedido.listaDeProdutos ?? [];
+    try {
+      var pedido = orders.firstWhere((order) => order.id == pedidoId);
+      return pedido.listaDeProdutos ?? [];
+    } catch (e) {
+      // Pedido não encontrado
+      return [];
+    }
   }
 
   @override

@@ -201,4 +201,48 @@ class SignInRepository {
     
     return 0; // Falha não identificada
   }
+
+  // Método para enviar email de recuperação de senha
+  Future<bool> sendResetPasswordEmail(String email) async {
+    // Primeiro verificamos se o email existe localmente no cache
+    if (_emailCache.containsKey(email) && _emailCache[email] == false) {
+      // Se já sabemos que o email não existe, falhamos imediatamente
+      log('Email não encontrado (verificação local): $email');
+      throw Exception("Email não encontrado. Verifique se digitou corretamente.");
+    }
+
+    try {
+      // Enviamos a solicitação para a API de recuperação de senha
+      final response = await _dio.post(
+        '$kBaseURL/password/reset',
+        data: {
+          'email': email,
+        },
+      );
+
+      // Se a requisição foi bem-sucedida, registramos que o email existe
+      if (response.statusCode == 200) {
+        log('Email de recuperação enviado com sucesso para: $email');
+        _registrarEmailValido(email); // Registra o email como válido no cache
+        return true;
+      } else {
+        log('Erro ao enviar email de recuperação: ${response.statusCode}');
+        throw Exception("Não foi possível processar sua solicitação. Tente novamente mais tarde.");
+      }
+    } catch (e) {
+      // Verificamos se é um erro de resposta HTTP
+      if (e is DioError) {
+        // Se o status code for 404 ou 422, significa que o email não existe
+        if (e.response?.statusCode == 404 || e.response?.statusCode == 422) {
+          log('Email não encontrado: $email');
+          _emailCache[email] = false; // Registra no cache que este email não existe
+          throw Exception("Email não encontrado. Verifique se digitou corretamente.");
+        }
+      }
+      
+      // Para outros erros, lançamos uma mensagem genérica
+      log('Erro ao solicitar recuperação de senha: ${e.toString()}');
+      throw Exception("Erro ao enviar email de recuperação. Verifique sua conexão e tente novamente.");
+    }
+  }
 }

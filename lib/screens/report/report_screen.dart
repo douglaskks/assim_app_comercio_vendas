@@ -190,7 +190,7 @@ class _OrderCardState extends State<ReportCard> {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        widget.model.consumidorName!,
+                                        widget.model.consumidorName ?? 'Nome não identificado',
                                         style: const TextStyle(fontSize: 15),
                                         overflow: TextOverflow.ellipsis,
                                       ),

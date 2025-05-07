@@ -40,6 +40,10 @@ class ListProductsController extends GetxController {
     update();
   }
 
+  // Método para ordenar a lista de produtos por título
+  // Vamos remover este método já que não podemos acessar diretamente o título
+  // A ordenação vai ocorrer nos produtos antes de criar os cards
+
   Future<List<CardProductsList>> populateCardsProductsList() async {
     List<CardProductsList> list = [];
     UserStorage userStorage = UserStorage();
@@ -47,7 +51,12 @@ class ListProductsController extends GetxController {
     var userId = await userStorage.getUserId();
     bancaModel = homeScreenController.bancas[homeScreenController.banca.value];
     var products = await repository.getProducts(bancaModel?.id);
+    
+    // Ordenar os produtos por título em ordem alfabética
+    products.sort((a, b) => a.titulo!.toLowerCase().compareTo(b.titulo!.toLowerCase()));
+    
     quantProducts = products.length;
+    quantStock = 0; // Resetar o contador para evitar acumulação em chamadas repetidas
 
     if (products.isNotEmpty) {
       for (int i = 0; i < products.length; i++) {
@@ -58,7 +67,7 @@ class ListProductsController extends GetxController {
             tableProducts,
             editRepository);
         list.add(card);
-        if (products.isNotEmpty) {
+        if (products[i].estoque != null) {
           quantStock += products[i].estoque!;
         }
       }
@@ -86,6 +95,8 @@ class ListProductsController extends GetxController {
   Future<void> fetchProducts() async {
     tableProducts = await loadList();
     products = await populateCardsProductsList();
+    // Não precisamos chamar sortProductsList() aqui pois a ordenação
+    // já é feita em populateCardsProductsList()
     update();
   }
 
@@ -93,7 +104,6 @@ class ListProductsController extends GetxController {
   void onInit() {
     super.onInit();
     fetchProducts();
-    update();
   }
 
   @override
@@ -103,6 +113,11 @@ class ListProductsController extends GetxController {
   }
 
   void refreshProductList() {
-    populateCardsProductsList().then((_) => update());
+    populateCardsProductsList().then((list) {
+      products = list;
+      // Não precisamos chamar sortProductsList() aqui pois a ordenação
+      // já é feita em populateCardsProductsList()
+      update();
+    });
   }
 }

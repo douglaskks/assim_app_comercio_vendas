@@ -227,7 +227,10 @@ class _OrderDetailScreenState
                   ),
                   Expanded(
                     child: ItensPedidoWidget(
-                        pedidoId: widget.model.id!),
+                        pedidoId: widget.model.id!,
+                        controller: widget.controller,
+                        
+                      ),
                   ),
                   Divider(
                     height: size.height * 0.03,
@@ -441,7 +444,7 @@ class _OrderDetailScreenState
                               const EdgeInsetsDirectional
                                   .only(start: 10),
                           child: Text(
-                            widget.model.consumidorName!,
+                            widget.model.consumidorName ?? 'Nome não identificado',
                             overflow: TextOverflow.ellipsis,
                             softWrap: false,
                           )),
@@ -569,7 +572,9 @@ class _OrderDetailScreenState
                   ),
                   Expanded(
                     child: ItensPedidoWidget(
-                        pedidoId: widget.model.id!),
+                        pedidoId: widget.model.id!,
+                        controller: widget.controller,
+                        ),
                   ),
                   Divider(
                     height: size.height * 0.03,
@@ -633,7 +638,7 @@ class _OrderDetailScreenState
                   color: Colors.transparent,
                 ),
                 Text(
-                  'Confirmar entrega/retirada',
+                  'Confirmar entrega/retirada?',
                   style: TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: size.height * 0.020),
@@ -874,7 +879,9 @@ class _OrderDetailScreenState
                   ),
                   Expanded(
                     child: ItensPedidoWidget(
-                        pedidoId: widget.model.id!),
+                        pedidoId: widget.model.id!,
+                        controller: widget.controller,
+                        ),
                   ),
 
                   Divider(

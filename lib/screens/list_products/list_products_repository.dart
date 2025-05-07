@@ -46,6 +46,9 @@ class ListProductsRepository {
       stockProduct.add(product);
     }
 
+    // Ordenar os produtos por título antes de retorná-los
+    stockProduct.sort((a, b) => a.titulo!.toLowerCase().compareTo(b.titulo!.toLowerCase()));
+
     if (response.statusCode == 200 ||
         response.statusCode == 201) {
       return stockProduct;

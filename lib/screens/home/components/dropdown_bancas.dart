@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:get/get_navigation/src/extension_navigation.dart';
 import 'package:thunderapp/shared/constants/style_constants.dart';
-import 'package:thunderapp/shared/core/models/feira_model.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import '../../../shared/core/models/list_banca_model.dart';
-import '../../../shared/core/navigator.dart';
-import '../../screens_index.dart';
-import '../home_screen.dart';
 import '../home_screen_controller.dart';
 
 // ignore: must_be_immutable
@@ -19,11 +14,51 @@ class DropDownBanca extends StatefulWidget {
   State<DropDownBanca> createState() => _DropDownAddProductState();
 }
 
-class _DropDownAddProductState extends State<DropDownBanca> {
+class _DropDownAddProductState extends State<DropDownBanca> with SingleTickerProviderStateMixin {
   final dropValue = ValueNotifier('');
+  late AnimationController _animationController;
+  Animation<double>? _rotationAnimation;
+  bool _isDropdownOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Inicializar o controller de animação
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    
+    // Inicializar a animação de rotação
+    _rotationAnimation = Tween<double>(
+      begin: 0.0,
+      end: 0.5, // Meio giro (180 graus)
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Verificação de segurança para garantir que a animação está inicializada
+    if (_rotationAnimation == null) {
+      _rotationAnimation = Tween<double>(
+        begin: 0.0,
+        end: 0.5,
+      ).animate(CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOut,
+      ));
+    }
+    
     var idScreen = 0;
     Size size = MediaQuery.of(context).size;
     return Container(
@@ -31,10 +66,13 @@ class _DropDownAddProductState extends State<DropDownBanca> {
       width: size.width * 0.2,
       child: DropdownButton2<ListBancaModel>(
         isExpanded: true,
-        customButton: Icon(
-          Icons.keyboard_arrow_up,
-          color: kPrimaryColor,
-          size: size.width * 0.1,
+        customButton: RotationTransition(
+          turns: _rotationAnimation!,
+          child: Icon(
+            Icons.keyboard_arrow_up,
+            color: kPrimaryColor,
+            size: size.width * 0.1,
+          ),
         ),
         dropdownStyleData: DropdownStyleData(
           width: size.width,
@@ -44,6 +82,16 @@ class _DropDownAddProductState extends State<DropDownBanca> {
           ),
           offset: const Offset(0, 8),
         ),
+        onMenuStateChange: (isOpen) {
+          setState(() {
+            _isDropdownOpen = isOpen;
+            if (isOpen) {
+              _animationController.forward();
+            } else {
+              _animationController.reverse();
+            }
+          });
+        },
         value: null,
         items: widget.controller.bancas.map((obj) {
           return DropdownMenuItem<ListBancaModel>(

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:thunderapp/components/forms/custom_text_form_field.dart';
 import 'package:thunderapp/components/utils/vertical_spacer_box.dart';
+import 'package:thunderapp/screens/forgot_password/forgot_password_screen.dart';
 import 'package:thunderapp/screens/signin/sign_in_controller.dart';
-import 'package:thunderapp/shared/components/bottomLogos/bottom_logos.dart';
 import 'package:thunderapp/shared/components/header_start_app/header_start_app.dart';
 import 'package:thunderapp/shared/constants/style_constants.dart';
 import '../../shared/constants/app_enums.dart';
@@ -14,168 +14,154 @@ class SignInScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => SignInController()),
-      ],
-      builder: (context, child) {
-        return Consumer<SignInController>(
-          builder: (context, controller, child) => GestureDetector(
-            onTap: () => FocusScope.of(context).requestFocus(FocusNode()),
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color(0xFF008000),
-                    Color(0xFF63A355),
-                  ],
-                ),
-              ),
-              child: Scaffold(
-                backgroundColor: Colors.transparent,
-                body: SafeArea(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final height = constraints.maxHeight;
-                      final width = constraints.maxWidth;
-
-                      return Stack(
-                        children: [
-                          // Header
-                          const Positioned(
-                            top: 10,
-                            left: 0,
-                            right: 0,
-                            child: HeaderStartApp(),
-                          ),
-                          
-                          // Form Container
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              width: width,
-                              height: height * 0.7,
-                              decoration: const BoxDecoration(
-                                color: kBackgroundColor,
-                                borderRadius: BorderRadius.only(
-                                  topLeft: Radius.circular(40),
-                                  topRight: Radius.circular(40),
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  // Form Content
-                                  Expanded(
-                                    child: Form(
-                                      key: controller.formKey,
-                                      child: SingleChildScrollView(
-                                        padding: const EdgeInsets.fromLTRB(28.0, 30.0, 28.0, 0),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            // Email Field
-                                            Text(
-                                              'E-mail',
-                                              style: TextStyle(
-                                                color: kSecondaryColor,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: height * 0.018,
-                                              ),
-                                            ),
-                                            CustomTextFormField(
-                                              erroStyle: const TextStyle(fontSize: 12),
-                                              validatorError: (value) {
-                                                if (value.isEmpty) return 'Obrigatório';
-                                                if (value.contains(' ')) return "Digite um e-mail válido";
-                                                if (!value.contains('@')) return "Digite um e-mail válido";
-                                                return null;
-                                              },
-                                              controller: controller.emailController,
-                                            ),
-                                            
-                                            const VerticalSpacerBox(size: SpacerSize.small),
-                                            
-                                            // Password Field
-                                            Text(
-                                              'Senha',
-                                              style: TextStyle(
-                                                color: kSecondaryColor,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: height * 0.018,
-                                              ),
-                                            ),
-                                            CustomTextFormField(
-                                              erroStyle: const TextStyle(fontSize: 12),
-                                              validatorError: (value) {
-                                                if (value.isEmpty) return 'Obrigatório';
-                                                return null;
-                                              },
-                                              controller: controller.passwordController,
-                                              isPassword: true,
-                                            ),
-                                            
-                                            SizedBox(height: height * 0.04),
-                                            
-                                            // Login Button
-                                            if (controller.status == SignInStatus.loading)
-                                              const Center(child: CircularProgressIndicator())
-                                            else
-                                              SizedBox(
-                                                width: width,
-                                                height: height * 0.06,
-                                                child: ElevatedButton(
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: kPrimaryColor,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(kDefaultBorderRadius),
-                                                    ),
-                                                  ),
-                                                  onPressed: () {
-                                                    final isValidForm = controller.formKey.currentState!.validate();
-                                                    if (isValidForm) {
-                                                      controller.signIn(context);
-                                                    }
-                                                  },
-                                                  child: FittedBox(
-                                                    fit: BoxFit.scaleDown,
-                                                    child: Text(
-                                                      'Entrar',
-                                                      style: kBody2.copyWith(color: kTextColor),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              
-                                            // Espaço para garantir que o botão não fique coberto pelos logos
-                                            SizedBox(height: height * 0.1),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  
-                                  // Bottom Logos - Agora dentro do Container principal, não mais como Positioned
-                                  Container(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: BottomLogos(150),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+    return ChangeNotifierProvider(
+      create: (_) => SignInController(),
+      child: Consumer<SignInController>(
+        builder: (context, controller, child) => Scaffold(
+          resizeToAvoidBottomInset: true,
+          backgroundColor: kPrimaryColor,
+          body: Column(
+            children: [
+              // Header (Parte superior verde)
+              Expanded(
+                flex: 2,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 35),
+                    child: Container(
+                      child: const HeaderStartApp(),
+                    ),
                   ),
                 ),
               ),
-            ),
+              
+              // Formulário (Parte inferior branca)
+              Expanded(
+                flex: 3,
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: kBackgroundColor,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(35),
+                      topRight: Radius.circular(35),
+                    )
+                  ),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(kDefaultPadding),
+                      child: Form(
+                        key: controller.formKey,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Entrar',
+                              style: kBody2.copyWith(color: kSecondaryColor, fontWeight: FontWeight.w700),
+                              textAlign: TextAlign.center,
+                            ),
+                            const VerticalSpacerBox(size: SpacerSize.huge),
+                            
+                            // Campo de e-mail
+                            CustomTextFormField(
+                              hintText: 'E-mail',
+                              icon: Icons.email,
+                              controller: controller.emailController,
+                              validatorError: (value) {
+                                if (value.isEmpty) return 'Obrigatório';
+                                if (value.contains(' ')) return "Digite um e-mail válido";
+                                if (!value.contains('@')) return "Digite um e-mail válido";
+                                return null;
+                              },
+                            ),
+                            
+                            const VerticalSpacerBox(size: SpacerSize.small),
+                            
+                            // Campo de senha
+                            CustomTextFormField(
+                              hintText: 'Senha',
+                              icon: Icons.lock,
+                              isPassword: true,
+                              controller: controller.passwordController,
+                              validatorError: (value) {
+                                if (value.isEmpty) return 'Obrigatório';
+                                return null;
+                              },
+                            ),
+                            
+                            // Botão "Esqueceu a senha?"
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const ForgotPasswordScreen(),
+                                    ),
+                                  );
+                                },
+                                child: const Text(
+                                  'Esqueceu a senha?',
+                                  style: TextStyle(color: kPrimaryColor),
+                                ),
+                              ),
+                            ),
+                            
+                            const VerticalSpacerBox(size: SpacerSize.medium),
+                            
+                            // Botão de login
+                            if (controller.status == SignInStatus.loading)
+                              const Center(
+                                child: CircularProgressIndicator(color: kPrimaryColor),
+                              )
+                            else
+                              ElevatedButton(
+                                onPressed: () {
+                                  if (controller.formKey.currentState!.validate()) {
+                                    controller.signIn(context);
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: kPrimaryColor,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(kDefaultBorderRadius),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  textStyle: const TextStyle(
+                                    fontSize: 18, 
+                                    fontWeight: FontWeight.w500
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Entrar',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              
+                            const VerticalSpacerBox(size: SpacerSize.medium),
+                            
+                            // Mensagem de erro (se houver)
+                            if (controller.errorMessage != null)
+                              Text(
+                                controller.errorMessage!,
+                                style: kCaption1,
+                                textAlign: TextAlign.center,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

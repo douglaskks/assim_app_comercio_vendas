@@ -432,16 +432,10 @@ bool _isClosingTimeInvalid(String abertura, String fechamento) {
                                               controlAffinity:
                                                   ListTileControlAffinity
                                                       .leading,
-                                              onChanged:
-                                                  (value) {
-                                                controller
-                                                    .onItemTapped(
-                                                        1);
-                                                controller.setPixBool(
-                                                    !controller
-                                                        .pixBool);
-                                                print(
-                                                    "valor do pix: ${controller.pixBool}");
+                                              onChanged: (value) {
+                                                controller.onItemTapped(1);
+                                                controller.setPixBool(value!); // Use o valor do checkbox diretamente
+                                                print("valor do pix: ${controller.pixBool}");
                                               }),
                                     ),
                                   ],

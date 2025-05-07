@@ -15,6 +15,7 @@ migrate_working_dir/
 .swift
 
 # IntelliJ related
+*.jks
 *.iml
 *.ipr
 *.iws

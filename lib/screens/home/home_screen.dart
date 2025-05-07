@@ -24,12 +24,41 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  late HomeScreenController controller;
+  
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    controller = Get.put(HomeScreenController());
+  }
+  
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Atualiza quando o app volta ao primeiro plano
+      controller.onInit();
+    }
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Força a atualização quando a tela recebe o foco
+    controller.onInit();
+  }
+
   @override
   Widget build(BuildContext context) {
     Size size = MediaQuery.of(context).size;
     return GetBuilder<HomeScreenController>(
-        init: HomeScreenController(),
         builder: (controller) => Scaffold(
               appBar: AppBar(
                 backgroundColor: kPrimaryColor,
@@ -197,7 +226,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                         MaterialPageRoute(
                                           builder: (_) => const AddStoreScreen(),
                                         ),
-                                      );
+                                      ).then((_) {
+                                        // Força a atualização quando retornar da tela de AddStoreScreen
+                                        controller.onInit();
+                                        controller.update();
+                                      });
                                     },
                                     sizeIcon: size.height * 0.07,
                                     sizeText: size.height * 0.017,

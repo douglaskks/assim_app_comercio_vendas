@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'package:thunderapp/screens/home/home_screen_controller.dart';
 import 'package:thunderapp/screens/my_store/my_store_repository.dart';
 import 'package:thunderapp/shared/core/models/banca_model.dart';
 import 'package:thunderapp/shared/core/models/feira_model.dart';
@@ -12,6 +13,7 @@ import '../../shared/components/dialogs/default_alert_dialog.dart';
 import '../../shared/constants/style_constants.dart';
 import '../../shared/core/image_picker_controller.dart';
 import '../home/home_screen.dart';
+import 'package:thunderapp/screens/home/home_screen_controller.dart'; // Adicione esta linha
 import '../screens_index.dart';
 
 class MyStoreController extends GetxController {
@@ -284,6 +286,12 @@ class MyStoreController extends GetxController {
           _pixController.text);
           
       if (adcSucess) {
+        // Tenta atualizar o HomeScreenController se estiver disponível
+        if (Get.isRegistered<HomeScreenController>()) {
+          final homeController = Get.find<HomeScreenController>();
+          homeController.reloadEverything(); // Recarregar tudo do zero
+        }
+        
         // ignore: use_build_context_synchronously
         showDialog(
             context: context,
@@ -291,8 +299,9 @@ class MyStoreController extends GetxController {
                   title: 'Sucesso',
                   body: 'Sua banca foi criada',
                   confirmText: 'Ok',
-                  onConfirm: () =>
-                      Navigator.popAndPushNamed(context, Screens.home),
+                  onConfirm: () {
+                    Get.offAll(() => const HomeScreen());
+                  },
                   buttonColor: kSuccessColor,
                 ));
       } else {
