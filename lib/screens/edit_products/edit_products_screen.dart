@@ -31,57 +31,25 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
   void initState() {
     super.initState();
     
-    // ✅ Criar tag única para evitar conflitos
     _uniqueTag = 'EditProductsController_${widget.model.id}_${DateTime.now().millisecondsSinceEpoch}';
     
-    // ✅ Remover controller anterior se existir
     if (Get.isRegistered<EditProductsController>(tag: _uniqueTag)) {
       Get.delete<EditProductsController>(tag: _uniqueTag);
     }
     
-    // ✅ Criar novo controller com tag única
     controller = Get.put(
       EditProductsController(widget.model), 
       tag: _uniqueTag,
       permanent: false
     );
-    
-    // ✅ LOGS APENAS EM DEBUG
-    if (kDebugMode) {
-      debugPrint('=== SCREEN INICIALIZADA ===');
-      debugPrint('Produto ID: ${widget.model.id}');
-      debugPrint('Produto Título: ${widget.model.titulo}');
-      debugPrint('Controller Tag: $_uniqueTag');
-      debugPrint('Build Mode: ${_getBuildMode()}');
-      debugPrint('===========================');
-    }
   }
 
   @override
   void dispose() {
-    // ✅ Limpar controller ao fechar a tela
     if (Get.isRegistered<EditProductsController>(tag: _uniqueTag)) {
       Get.delete<EditProductsController>(tag: _uniqueTag);
     }
-    
-    if (kDebugMode) {
-      debugPrint('Controller removido: $_uniqueTag');
-    }
     super.dispose();
-  }
-
-  // ✅ HELPER: Detectar modo de build
-  String _getBuildMode() {
-    if (kDebugMode) return 'DEBUG';
-    if (kProfileMode) return 'PROFILE';  
-    if (kReleaseMode) return 'RELEASE';
-    return 'UNKNOWN';
-  }
-
-  // ✅ HELPER: Verificar se deve mostrar debug
-  bool get _shouldShowDebug {
-    // Apenas em debug mode E durante desenvolvimento
-    return kDebugMode && !kReleaseMode;
   }
 
   @override
@@ -111,10 +79,7 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
       iconTheme: const IconThemeData(color: Colors.white),
       centerTitle: true,
       title: Text(
-        // ✅ TÍTULO DIFERENTE EM DEBUG
-        _shouldShowDebug 
-            ? 'Editar Produto [DEBUG]' 
-            : 'Editar Produto',
+        'Editar Produto',
         style: TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w600,
@@ -171,9 +136,6 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ SEÇÃO DEBUG - APENAS EM DESENVOLVIMENTO
-            if (_shouldShowDebug) _buildDebugSection(),
-            
             // SEÇÃO 1: IMAGEM E INFORMAÇÕES BÁSICAS
             _buildSectionCard(
               title: 'Imagem e Informações',
@@ -205,10 +167,19 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
             
             const SizedBox(height: 16),
             
-            //SEÇÃO 2: CATEGORIA E TIPO
+            // ✅ SEÇÃO 2: INFORMAÇÕES DO PRODUTO (CORRIGIDA)
             _buildSectionCard(
-              title: 'Produto',
-              subtitle: 'Produto a ser editado',
+              title: 'Informações do Produto',
+              subtitle: 'Dados principais do produto selecionado',
+              child: _buildProductInfoCard(),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // ✅ SEÇÃO 3: SELEÇÃO DE PRODUTO (CORRIGIDA)
+            _buildSectionCard(
+              title: 'Seleção de Produto',
+              subtitle: 'Escolha o produto da lista tabelada',
               child: Container(
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey[300]!),
@@ -220,7 +191,7 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
             
             const SizedBox(height: 16),
             
-            // SEÇÃO 3: PREÇOS E ESTOQUE
+            // SEÇÃO 4: PREÇOS E ESTOQUE
             _buildSectionCard(
               title: 'Preços e Estoque',
               subtitle: 'Configure valores e quantidade disponível',
@@ -228,14 +199,18 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
                 children: [
                   SaleInfos(controller, widget.model),
                   const SizedBox(height: 16),
-                  DropDownQtdEditProduct(controller, widget.model),
+                  
+                  // ✅ CORREÇÃO: Container com altura fixa para unidade de medida
+                  Container(
+                    height: 60, // Altura fixa
+                    child: DropDownQtdEditProduct(controller, widget.model),
+                  ),
                 ],
               ),
             ),
             
             const SizedBox(height: 32),
             
-            // BOTÕES DE AÇÃO
             _buildActionButtons(size, controller),
             
             const SizedBox(height: 20),
@@ -245,45 +220,64 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
     );
   }
 
-  // ✅ SEÇÃO DEBUG - Apenas visível em desenvolvimento
-  Widget _buildDebugSection() {
+  // ✅ NOVO: Card com informações corretas do produto
+  Widget _buildProductInfoCard() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.amber[50],
-        border: Border.all(color: Colors.amber[300]!),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[200]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.bug_report, color: Colors.amber[800], size: 16),
+              Icon(Icons.info_outline, color: Colors.blue[600], size: 20),
               const SizedBox(width: 8),
               Text(
-                '🔧 DEBUG INFO - ${_getBuildMode()}',
+                'Informações Atuais',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Colors.amber[800],
+                  color: Colors.blue[700],
+                  fontSize: 16,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          
+          // ✅ CORREÇÃO: Mostrar dados corretos
+          _buildInfoRow('Nome:', widget.model.nome ?? 'Não informado'),
+          _buildInfoRow('Título:', widget.model.titulo ?? 'Não informado'),
+          _buildInfoRow('Descrição:', widget.model.descricao ?? 'Não informado'),
+          _buildInfoRow('Estoque:', '${widget.model.estoque ?? 0} unidades'),
+          _buildInfoRow('Preço:', 'R\$ ${widget.model.preco?.toStringAsFixed(2) ?? "0,00"}'),
+          _buildInfoRow('Unidade:', widget.model.tipoMedida ?? 'Não informado'),
+          
           const SizedBox(height: 8),
-          Text('ID: ${widget.model.id}', style: const TextStyle(fontSize: 12)),
-          Text('Título Original: ${widget.model.titulo}', style: const TextStyle(fontSize: 12)),
-          Text('Descrição Original: ${widget.model.descricao}', style: const TextStyle(fontSize: 12)),
-          Text('Estoque Original: ${widget.model.estoque}', style: const TextStyle(fontSize: 12)),
-          Text('Preço Original: ${widget.model.preco}', style: const TextStyle(fontSize: 12)),
-          Text('Controller Tag: $_uniqueTag', style: const TextStyle(fontSize: 10)),
-          const SizedBox(height: 4),
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.red[100],
-              borderRadius: BorderRadius.circular(4),
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.green[200]!),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle, color: Colors.green[600], size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  'ID do Produto: ${widget.model.id}',
+                  style: TextStyle(
+                    color: Colors.green[700],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -338,10 +332,40 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
     );
   }
 
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[700],
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: Colors.blue[600],
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionButtons(Size size, EditProductsController controller) {
     return Column(
       children: [
-        // Botão Salvar
         SizedBox(
           width: double.infinity,
           height: 56,
@@ -408,10 +432,10 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Produto: ${widget.model.titulo ?? 'Sem título'}',
+                    'Produto: ${widget.model.titulo ?? widget.model.nome ?? 'Sem título'}',
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
-                  if (widget.model.descricao != null)
+                  if (widget.model.descricao != null && widget.model.descricao!.isNotEmpty)
                     Text('Descrição: ${widget.model.descricao}'),
                   Text('ID: ${widget.model.id}'),
                 ],
@@ -453,14 +477,6 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
   }
 
   Future<void> _handleSave(EditProductsController controller) async {
-    // ✅ LOGS APENAS EM DEBUG
-    if (kDebugMode) {
-      debugPrint('=== INICIANDO SALVAMENTO ===');
-      debugPrint('Produto ID: ${widget.model.id}');
-      debugPrint('Título Controller: ${controller.titleController.text}');
-      debugPrint('============================');
-    }
-    
     if (!controller.formKey.currentState!.validate()) {
       _showErrorSnackbar('Por favor, corrija os campos destacados em vermelho');
       return;
@@ -482,10 +498,6 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
         _showErrorSnackbar('Erro ao salvar. Tente novamente.');
       }
     } catch (e) {
-      // ✅ LOGS DE ERRO APENAS EM DEBUG
-      if (kDebugMode) {
-        debugPrint('Erro durante salvamento: $e');
-      }
       _showErrorSnackbar('Erro inesperado. Verifique sua conexão.');
     } finally {
       if (mounted) {
@@ -496,13 +508,6 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
 
   Future<void> _handleDelete(BuildContext context) async {
     Navigator.pop(context);
-    
-    if (kDebugMode) {
-      debugPrint('=== INICIANDO EXCLUSÃO ===');
-      debugPrint('Produto ID: ${widget.model.id}');
-      debugPrint('==========================');
-    }
-    
     setState(() => _isLoading = true);
 
     try {
@@ -514,9 +519,6 @@ class _EditProductsScreenState extends State<EditProductsScreen> {
         _showErrorSnackbar('Erro ao excluir produto. Tente novamente.');
       }
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Erro durante exclusão: $e');
-      }
       _showErrorSnackbar('Erro inesperado ao excluir produto.');
     } finally {
       if (mounted) {

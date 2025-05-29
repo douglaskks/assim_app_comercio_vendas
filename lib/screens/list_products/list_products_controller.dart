@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,6 +30,10 @@ class ListProductsController extends GetxController {
   late String userId;
   late bool hasImage = false;
 
+  // ✅ Estados de loading e erro
+  bool isLoading = false;
+  String? errorMessage;
+
   HomeScreenRepository homeRepository = HomeScreenRepository();
   EditProductsRepository editRepository = EditProductsRepository();
   ListProductsRepository repository = ListProductsRepository();
@@ -40,84 +45,246 @@ class ListProductsController extends GetxController {
     update();
   }
 
-  // Método para ordenar a lista de produtos por título
-  // Vamos remover este método já que não podemos acessar diretamente o título
-  // A ordenação vai ocorrer nos produtos antes de criar os cards
+  // ✅ Método para controlar loading
+  void _setLoading(bool loading) {
+    isLoading = loading;
+    update();
+  }
+
+  // ✅ Método para definir erro
+  void _setError(String? error) {
+    errorMessage = error;
+    update();
+  }
 
   Future<List<CardProductsList>> populateCardsProductsList() async {
-    List<CardProductsList> list = [];
-    UserStorage userStorage = UserStorage();
-    var token = await userStorage.getUserToken();
-    var userId = await userStorage.getUserId();
-    bancaModel = homeScreenController.bancas[homeScreenController.banca.value];
-    var products = await repository.getProducts(bancaModel?.id);
-    
-    // Ordenar os produtos por título em ordem alfabética
-    products.sort((a, b) => a.titulo!.toLowerCase().compareTo(b.titulo!.toLowerCase()));
-    
-    quantProducts = products.length;
-    quantStock = 0; // Resetar o contador para evitar acumulação em chamadas repetidas
-
-    if (products.isNotEmpty) {
-      for (int i = 0; i < products.length; i++) {
-        CardProductsList card = CardProductsList(
-            token,
-            products[i],
-            repository,
-            tableProducts,
-            editRepository);
-        list.add(card);
-        if (products[i].estoque != null) {
-          quantStock += products[i].estoque!;
-        }
-      }
-    } else {
-      log('CARD VAZIO');
-      list = [];
-      return list;
+    if (kDebugMode) {
+      debugPrint('=== POPULANDO LISTA DE PRODUTOS ===');
     }
 
-    // Verifica se a lista está vazia antes de tentar acessá-la
-    if (list.isNotEmpty) {
-      update();
+    List<CardProductsList> list = [];
+    
+    try {
+      _setLoading(true);
+      _setError(null);
+
+      UserStorage userStorage = UserStorage();
+      var token = await userStorage.getUserToken();
+      var userId = await userStorage.getUserId();
+      
+      // ✅ Verificar se homeScreenController está inicializado
+      if (homeScreenController.bancas.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('⚠️ Lista de bancas vazia, tentando recarregar...');
+        }
+        // ✅ CORREÇÃO: onInit() retorna void, não Future
+        // Tentar forçar atualização do homeScreenController
+        homeScreenController.onInit();
+        
+        // Aguardar um pouco para dar tempo de carregar
+        await Future.delayed(Duration(milliseconds: 500));
+        
+        // Se ainda estiver vazio, tentar método alternativo
+        if (homeScreenController.bancas.isEmpty) {
+          throw Exception('Não foi possível carregar a lista de bancas');
+        }
+      }
+
+      // ✅ Verificar se o índice da banca é válido
+      int bancaIndex = homeScreenController.banca.value;
+      if (bancaIndex >= homeScreenController.bancas.length) {
+        throw Exception('Índice da banca inválido: $bancaIndex');
+      }
+
+      bancaModel = homeScreenController.bancas[bancaIndex];
+      
+      if (bancaModel?.id == null) {
+        throw Exception('ID da banca não encontrado');
+      }
+
+      if (kDebugMode) {
+        debugPrint('Banca selecionada: ${bancaModel?.nome} (ID: ${bancaModel?.id})');
+        debugPrint('Token: ${token.substring(0, 20)}...');
+        debugPrint('User ID: $userId');
+      }
+
+      // ✅ Buscar produtos da API
+      var products = await repository.getProducts(bancaModel?.id);
+      
+      if (kDebugMode) {
+        debugPrint('Produtos retornados da API: ${products.length}');
+      }
+
+      // ✅ Atualizar contadores
+      quantProducts = products.length;
+      quantStock = 0; // Resetar o contador
+
+      if (products.isNotEmpty) {
+        for (int i = 0; i < products.length; i++) {
+          try {
+            CardProductsList card = CardProductsList(
+              token,
+              products[i],
+              repository,
+              tableProducts,
+              editRepository
+            );
+            list.add(card);
+            
+            // ✅ Somar estoque com null safety
+            if (products[i].estoque != null) {
+              quantStock += products[i].estoque!;
+            }
+
+            if (kDebugMode) {
+              debugPrint('Card criado para: ${products[i].titulo}');
+            }
+
+          } catch (e) {
+            if (kDebugMode) {
+              debugPrint('❌ Erro ao criar card para produto ${i}: $e');
+            }
+            continue; // Pular este produto e continuar
+          }
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint('⚠️ Nenhum produto encontrado para a banca');
+        }
+        _setError('Nenhum produto cadastrado nesta banca');
+        return [];
+      }
+
+      if (kDebugMode) {
+        debugPrint('=== RESUMO ===');
+        debugPrint('Cards criados: ${list.length}');
+        debugPrint('Quantidade de produtos: $quantProducts');
+        debugPrint('Estoque total: $quantStock');
+        debugPrint('==============');
+      }
+
+      _setError(null); // Limpar erro se chegou aqui
       return list;
-    } else {
-      throw RangeError('Lista vazia');
+
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('=== ERRO AO POPULAR LISTA ===');
+        debugPrint('Erro: $e');
+        debugPrint('Stack trace: ${StackTrace.current}');
+        debugPrint('=============================');
+      }
+      
+      _setError('Erro ao carregar produtos: ${e.toString()}');
+      return [];
+      
+    } finally {
+      _setLoading(false);
     }
   }
 
   Future<List<TableProductsModel>> loadList() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    List<String> listaString = prefs.getStringList('listaProdutosTabelados') ?? [];
-    return listaString.map((string) => TableProductsModel.fromJson(json.decode(string))).toList();
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      List<String> listaString = prefs.getStringList('listaProdutosTabelados') ?? [];
+      return listaString.map((string) => TableProductsModel.fromJson(json.decode(string))).toList();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Erro ao carregar lista local: $e');
+      }
+      return [];
+    }
   }
 
   Future<void> fetchProducts() async {
-    tableProducts = await loadList();
-    products = await populateCardsProductsList();
-    // Não precisamos chamar sortProductsList() aqui pois a ordenação
-    // já é feita em populateCardsProductsList()
+    if (kDebugMode) {
+      debugPrint('=== FETCH PRODUCTS INICIADO ===');
+    }
+
+    try {
+      // ✅ Carregar produtos tabelados primeiro
+      tableProducts = await loadList();
+      
+      if (kDebugMode) {
+        debugPrint('Produtos tabelados carregados: ${tableProducts.length}');
+      }
+
+      // ✅ Carregar produtos da banca
+      products = await populateCardsProductsList();
+      
+      if (kDebugMode) {
+        debugPrint('Produtos da banca carregados: ${products.length}');
+      }
+
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Erro em fetchProducts: $e');
+      }
+      _setError('Erro ao carregar dados: ${e.toString()}');
+    }
+    
     update();
+  }
+
+  // ✅ Método para refresh manual
+  Future<void> refreshProductList() async {
+    if (kDebugMode) {
+      debugPrint('=== REFRESH MANUAL ===');
+    }
+
+    try {
+      var newList = await populateCardsProductsList();
+      products = newList;
+      
+      if (kDebugMode) {
+        debugPrint('✅ Lista atualizada: ${products.length} produtos');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Erro no refresh: $e');
+      }
+    }
+    
+    update();
+  }
+
+  // ✅ Método para debug - verificar estado
+  void debugState() {
+    if (!kDebugMode) return;
+    
+    debugPrint('=== ESTADO DO CONTROLLER ===');
+    debugPrint('isLoading: $isLoading');
+    debugPrint('errorMessage: $errorMessage');
+    debugPrint('bancaModel: ${bancaModel?.toString()}');
+    debugPrint('quantProducts: $quantProducts');
+    debugPrint('quantStock: $quantStock');
+    debugPrint('products.length: ${products.length}');
+    debugPrint('tableProducts.length: ${tableProducts.length}');
+    debugPrint('homeScreenController.bancas.length: ${homeScreenController.bancas.length}');
+    debugPrint('homeScreenController.banca.value: ${homeScreenController.banca.value}');
+    debugPrint('============================');
   }
 
   @override
   void onInit() {
     super.onInit();
+    if (kDebugMode) {
+      debugPrint('=== ListProductsController onInit ===');
+    }
     fetchProducts();
   }
 
   @override
   void onReady() {
     super.onReady();
+    if (kDebugMode) {
+      debugPrint('=== ListProductsController onReady ===');
+    }
     refreshProductList();
   }
 
-  void refreshProductList() {
-    populateCardsProductsList().then((list) {
-      products = list;
-      // Não precisamos chamar sortProductsList() aqui pois a ordenação
-      // já é feita em populateCardsProductsList()
-      update();
-    });
+  @override
+  void onClose() {
+    _searchController.dispose();
+    super.onClose();
   }
 }
