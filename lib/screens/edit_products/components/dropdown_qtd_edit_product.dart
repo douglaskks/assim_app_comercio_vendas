@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:thunderapp/shared/constants/style_constants.dart';
 import 'package:thunderapp/shared/core/models/products_model.dart';
 
@@ -17,8 +18,7 @@ class DropDownQtdEditProduct extends StatefulWidget {
       _DropDownQtdEditProductState();
 }
 
-class _DropDownQtdEditProductState
-    extends State<DropDownQtdEditProduct> {
+class _DropDownQtdEditProductState extends State<DropDownQtdEditProduct> {
   final dropValue = ValueNotifier('');
 
   final dropOpcoes = [
@@ -33,6 +33,16 @@ class _DropDownQtdEditProductState
     'Arroba',
     'Bandeja',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ Inicializar com valor do produto se existir
+    if (widget.model?.tipoMedida != null && 
+        dropOpcoes.contains(widget.model!.tipoMedida)) {
+      dropValue.value = widget.model!.tipoMedida!;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,51 +68,70 @@ class _DropDownQtdEditProductState
             Container(
               alignment: AlignmentDirectional.centerStart,
               width: size.width * 0.4,
-              child: ValueListenableBuilder(
-                  valueListenable: dropValue,
-                  builder: (BuildContext context,
-                      String value, _) {
-                    return DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      icon: Icon(
-                        Icons.keyboard_arrow_down,
-                        color: kDetailColor,
+              child: GetBuilder<EditProductsController>(
+                builder: (controller) {
+                  return ValueListenableBuilder(
+                    valueListenable: dropValue,
+                    builder: (BuildContext context, String value, _) {
+                      // ✅ Usar o valor do controller se disponível
+                      String? currentValue;
+                      if (controller.measure.isNotEmpty && dropOpcoes.contains(controller.measure)) {
+                        currentValue = controller.measure;
+                      } else if (value.isNotEmpty) {
+                        currentValue = value;
+                      } else if (widget.model?.tipoMedida != null && 
+                                dropOpcoes.contains(widget.model!.tipoMedida!)) {
+                        currentValue = widget.model!.tipoMedida!;
+                      }
 
-                        size: size.width * 0.05,
-                      ),
-                      hint: Text(
-                        widget.model!.tipoMedida.toString(),
-                        style: TextStyle(
-                            fontSize: size.height * 0.018),
-                      ),
-                      value: (value.isEmpty) ? null : value,
-                      onChanged: (escolha) {
-                        setState(() {
-                          dropValue.value =
-                              escolha.toString();
-                          widget.controller.setMeasure(
-                              escolha.toString());
-                        });
-                      },
-                      items: dropOpcoes
-                          .map(
-                            (op) => DropdownMenuItem(
-                              value: op,
-                              child: Text(op),
-                            ),
-                          )
-                          .toList(),
-                      decoration: const InputDecoration(
-                        errorStyle: TextStyle(fontSize: 12),
-                      ),
-                      validator: (dropValue) {
-                        if(dropValue == null){
-                          return 'Obrigatório';
-                        }
-                        return null;
-                      },
-                    );
-                  }),
+                      return DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        icon: Icon(
+                          Icons.keyboard_arrow_down,
+                          color: kDetailColor,
+                          size: size.width * 0.05,
+                        ),
+                        hint: Text(
+                          widget.model?.tipoMedida?.toString() ?? 'Selecionar',
+                          style: TextStyle(fontSize: size.height * 0.018),
+                        ),
+                        value: currentValue,
+                        onChanged: (escolha) {
+                          setState(() {
+                            dropValue.value = escolha.toString();
+                            widget.controller.setMeasure(escolha.toString());
+                          });
+                        },
+                        items: dropOpcoes
+                            .map(
+                              (op) => DropdownMenuItem(
+                                value: op,
+                                child: Text(op),
+                              ),
+                            )
+                            .toList(),
+                        decoration: const InputDecoration(
+                          errorStyle: TextStyle(fontSize: 12),
+                        ),
+                        validator: (dropValue) {
+                          // ✅ CORREÇÃO: Validação inteligente
+                          // Se o produto já tem uma unidade de medida, não é obrigatório selecionar novamente
+                          if (dropValue == null || dropValue.isEmpty) {
+                            // Se não tem valor selecionado E não tem valor original, então é obrigatório
+                            if (widget.model?.tipoMedida == null || 
+                                widget.model!.tipoMedida!.isEmpty) {
+                              return 'Obrigatório';
+                            }
+                            // Se tem valor original, usar ele (não é erro)
+                            return null;
+                          }
+                          return null;
+                        },
+                      );
+                    }
+                  );
+                }
+              ),
             ),
           ],
         ),

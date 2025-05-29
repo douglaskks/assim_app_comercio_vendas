@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get/get_state_manager/src/simple/get_state.dart';
+import 'package:intl/intl.dart';
 import 'package:thunderapp/components/utils/vertical_spacer_box.dart';
 import 'package:thunderapp/screens/order_detail/order_detail_screen.dart';
 import 'package:thunderapp/screens/orders/orders_controller.dart';
@@ -9,7 +10,6 @@ import 'package:thunderapp/shared/constants/app_enums.dart';
 import 'package:thunderapp/shared/constants/app_number_constants.dart';
 import 'package:thunderapp/shared/constants/style_constants.dart';
 import 'package:thunderapp/shared/core/models/pedido_model.dart';
-import 'package:intl/intl.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({Key? key}) : super(key: key);
@@ -47,22 +47,64 @@ class _OrdersScreenState extends State<ReportScreen> {
             ),
           ),
           automaticallyImplyLeading: true,
+          
+          // Adicionar botão de ações na AppBar
+          actions: [
+            IconButton(
+              icon: Icon(Icons.history, color: Colors.white),
+              onPressed: () => controller.exibirHistorico(context),
+              tooltip: 'Ver histórico de vendas',
+            ),
+          ],
         ),
-        body: RefreshIndicator(
-          onRefresh: () async {
-            controller.pedidos = await controller.populateReportCard();
-            controller.update();
-            return;
-          },
-          child: Container(
-            padding: const EdgeInsets.all(kDefaultPadding - kSmallSize),
-            height: size.height,
-            child: controller.pedidos.isEmpty
-              ? _buildEmptyState(size, controller)
-              : ListView(
-                  children: controller.pedidos,
+        body: Column(
+          children: [
+            // Widget para mostrar o total do mês atual
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              color: kPrimaryColor.withOpacity(0.1),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total do mês atual:',
+                    style: TextStyle(
+                      fontSize: size.height * 0.020,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    NumberFormat.simpleCurrency(locale: 'pt-BR', decimalDigits: 2)
+                        .format(controller.totalPedidosMesAtual),
+                    style: TextStyle(
+                      fontSize: size.height * 0.022,
+                      fontWeight: FontWeight.bold,
+                      color: kPrimaryColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Lista de pedidos
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  controller.pedidos = await controller.populateReportCard();
+                  controller.update();
+                  return;
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(kDefaultPadding - kSmallSize),
+                  child: controller.pedidos.isEmpty
+                    ? _buildEmptyState(size, controller)
+                    : ListView(
+                        children: controller.pedidos,
+                      ),
                 ),
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -240,12 +282,14 @@ class _OrderCardState extends State<ReportCard> {
                             padding: const EdgeInsets.all(kTinySize),
                             decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(5),
-                                color: kAlertColor),
+                                color:  widget.model.status.toString() == 'pedido entregue' ? kDetailColor : kAlertColor,),
                             child: Text(
-                              widget.model.status.toString(),
-                              style: kCaption2.copyWith(color: kBackgroundColor),
-                            ),
-                          )
+                                  widget.model.status.toString(),
+                                  style: kCaption2.copyWith(
+                                    color: kBackgroundColor,
+                                  ),
+                                ),
+                              )
                         ],
                       ),
                     ],

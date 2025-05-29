@@ -10,6 +10,7 @@ class BancaModel {
   int agricultorId;
   String formasDePagamento;
   bool fazEntrega;
+  Map<String, dynamic>? horariosFuncionamento; // CAMPO ADICIONADO
 
   BancaModel(
     this.id,
@@ -21,7 +22,9 @@ class BancaModel {
     this.pix,
     this.feiraId,
     this.agricultorId,
-    {this.formasDePagamento = "1", this.fazEntrega = false}) {
+    {this.formasDePagamento = "1", 
+     this.fazEntrega = false,
+     this.horariosFuncionamento}) { // ADICIONAR AQUI
     // Garantir que nenhum campo String seja null
     this.nome = nome ?? '';
     this.descricao = descricao ?? '';
@@ -59,6 +62,7 @@ class BancaModel {
       'agricultorId': agricultorId,
       'formasDePagamento': formasDePagamento ?? '1',
       'fazEntrega': fazEntrega,
+      'horariosFuncionamento': horariosFuncionamento,
     };
   }
 
@@ -76,6 +80,7 @@ class BancaModel {
       map['agricultorId'] ?? 0,
       formasDePagamento: map['formasDePagamento'] ?? '1',
       fazEntrega: map['fazEntrega'] ?? false,
+      horariosFuncionamento: map['horariosFuncionamento'],
     );
   }
 }

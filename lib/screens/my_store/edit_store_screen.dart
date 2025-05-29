@@ -1,5 +1,4 @@
 // ignore_for_file: avoid_print
-import 'dart:math';
 import 'package:currency_text_input_formatter/currency_text_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,9 +16,9 @@ import 'components/circle_image_profile.dart';
 
 //TELA ASSIM - Edição de banca
 class EditStoreScreen extends StatefulWidget {
-  BancaModel? bancaModel;
+  final BancaModel? bancaModel; // CORREÇÃO: final ao invés de variável
 
-  EditStoreScreen(this.bancaModel, {Key? key}) : super(key: key);
+  const EditStoreScreen(this.bancaModel, {Key? key}) : super(key: key); // CORREÇÃO: const
 
   @override
   State<EditStoreScreen> createState() => _EditStoreScreenState();
@@ -35,61 +34,33 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
 
     final MyStoreController controller = Get.put(MyStoreController());
     
-    // Limpa os campos para não serem preenchidos automaticamente,
-    // assim o usuário pode escolher quais campos atualizar
-    controller.nomeBancaController.clear();
-    controller.horarioAberturaController.clear();
-    controller.horarioFechamentoController.clear();
-    controller.quantiaMinController.clear();
-    controller.pixController.clear();
-    
     if (widget.bancaModel != null) {
-      // Configurar estado do pix baseado na existência de uma chave
-      controller.pixBool =
-          widget.bancaModel!.pix != null && widget.bancaModel!.pix.isNotEmpty;
-
-      // Definir os itens selecionados de acordo com as formas de pagamento
-      String formasPagamento = widget.bancaModel!.formasDePagamento ?? "1";
-      List<String> pagamentoSelecionado = formasPagamento.split(",");
-
-      // Configura os checkboxes das formas de pagamento
-      controller.isSelected[0] = pagamentoSelecionado.contains("1"); // Dinheiro
-      controller.isSelected[1] = pagamentoSelecionado.contains("2"); // PIX
-      controller.isSelected[2] = pagamentoSelecionado.contains("3"); // Cartão
-      
-      // Configurar delivery
-      controller.delivery[0] = widget.bancaModel!.fazEntrega ?? false;
-      controller.delivery[1] = !(widget.bancaModel!.fazEntrega ?? false);
+      // USAR O MÉTODO ESPECÍFICO para carregar todos os dados da banca
+      controller.carregarDadosBancaParaEdicao(widget.bancaModel!);
     } else {
       // Valores padrão caso bancaModel seja nulo
+      controller.nomeBancaController.clear();
+      controller.horarioAberturaController.clear();
+      controller.horarioFechamentoController.clear();
+      controller.quantiaMinController.clear();
+      controller.pixController.clear();
+      
       controller.isSelected[0] = true; // Dinheiro habilitado por padrão
       controller.delivery[1] = true; // "Não" para entregas por padrão
+      controller.pixBool = false;
+      
+      // Resetar dias e horários
+      controller.diasSelecionados = List.filled(7, false);
+      controller.horariosFuncionamento = {
+        'segunda-feira': {'abertura': '', 'fechamento': ''},
+        'terca-feira': {'abertura': '', 'fechamento': ''},
+        'quarta-feira': {'abertura': '', 'fechamento': ''},
+        'quinta-feira': {'abertura': '', 'fechamento': ''},
+        'sexta-feira': {'abertura': '', 'fechamento': ''},
+        'sábado': {'abertura': '', 'fechamento': ''},
+        'domingo': {'abertura': '', 'fechamento': ''},
+      };
     }
-  }
-
-  TimeOfDay _getInitialTime(TextEditingController controller, String defaultTime) {
-    final text = controller.text;
-    if (text.isEmpty) {
-      // Se o controller estiver vazio, tentamos usar o valor padrão
-      if (defaultTime.isNotEmpty) {
-        final timeParts = defaultTime.split(':');
-        if (timeParts.length == 2) {
-          final hour = int.tryParse(timeParts[0]) ?? 0;
-          final minute = int.tryParse(timeParts[1]) ?? 0;
-          return TimeOfDay(hour: hour, minute: minute);
-        }
-      }
-      return TimeOfDay.now();
-    }
-    
-    // Se o controller tiver um valor, usamos ele
-    final timeParts = text.split(':');
-    if (timeParts.length == 2) {
-      final hour = int.tryParse(timeParts[0]) ?? 0;
-      final minute = int.tryParse(timeParts[1]) ?? 0;
-      return TimeOfDay(hour: hour, minute: minute);
-    }
-    return TimeOfDay.now();
   }
 
   String _formatTimeOfDayTo24Hour(TimeOfDay time) {
@@ -148,34 +119,6 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                                 color: Colors.transparent,
                               ),
                               
-                              // Informações atuais da banca
-                              /*Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Informações atuais da banca',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: size.height * 0.018,
-                                        color: kPrimaryColor,
-                                      ),
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text('Nome: ${widget.bancaModel?.nome ?? ""}'),
-                                    Text('Horário de Abertura: ${widget.bancaModel?.horarioAbertura ?? ""}'),
-                                    Text('Horário de Fechamento: ${widget.bancaModel?.horarioFechamento ?? ""}'),
-                                    Text('Preço Mínimo: R\$ ${widget.bancaModel?.precoMin ?? "0.00"}'),
-                                    Text('Chave PIX: ${widget.bancaModel?.pix ?? ""}'),
-                                  ],
-                                ),
-                              ),*/
-                              
                               const VerticalSpacerBox(size: SpacerSize.small),
                               
                               // Nome da banca
@@ -221,171 +164,72 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                                 color: Colors.transparent,
                               ),
                               
-                              // Horários
-                              SizedBox(
-                                width: size.width,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    // Horário de abertura
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          'Início dos pedidos',
-                                          style: TextStyle(
-                                            color: kSecondaryColor,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: size.height * 0.018,
-                                          ),
-                                        ),
-                                        Divider(
-                                          height: size.height * 0.006,
-                                          color: Colors.transparent,
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.access_time),
-                                          onPressed: () async {
-                                            final selectedTime = await showTimePicker(
-                                              context: context,
-                                              cancelText: "Cancelar",
-                                              confirmText: "Confirmar",
-                                              hourLabelText: "Horas",
-                                              minuteLabelText: "Minutos",
-                                              helpText: "Insira o horário:",
-                                              initialTime: _getInitialTime(
-                                                controller.horarioAberturaController, 
-                                                widget.bancaModel?.horarioAbertura ?? ""
-                                              ),
-                                              initialEntryMode: TimePickerEntryMode.inputOnly,
-                                              builder: (context, child) {
-                                                return Theme(
-                                                  data: Theme.of(context).copyWith(
-                                                    colorScheme: ColorScheme.light(
-                                                      primary: kPrimaryColor,
-                                                      onPrimary: Colors.white,
-                                                      onSurface: kPrimaryColor,
-                                                    ),
-                                                  ),
-                                                  child: MediaQuery(
-                                                    data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-                                                    child: child!,
-                                                  ),
-                                                );
-                                              },
-                                            );
-
-                                            if (selectedTime != null) {
-                                              final formattedTime = _formatTimeOfDayTo24Hour(selectedTime);
-                                              final fechamentoTime = controller.horarioFechamentoController.text;
-
-                                              if (fechamentoTime.isNotEmpty &&
-                                                  _isClosingTimeInvalid(formattedTime, fechamentoTime)) {
-                                                _showSnackbar(context, "O horário de abertura deve ser menor que o de fechamento.");
-                                                return;
-                                              }
-
-                                              setState(() {
-                                                controller.horarioAberturaController.text = formattedTime;
-                                              });
-                                            }
-                                          },
-                                        ),
-                                        if (controller.horarioAberturaController.text.isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 8.0),
-                                            child: Text(
-                                              controller.horarioAberturaController.text,
-                                              style: TextStyle(
-                                                color: kSecondaryColor,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: size.height * 0.018,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
+                              // Seção de Dias de Funcionamento
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Divider(
+                                    height: size.height * 0.025,
+                                    color: Colors.transparent,
+                                  ),
+                                  Text(
+                                    'Dias de Funcionamento',
+                                    style: TextStyle(
+                                      fontSize: size.height * 0.018,
+                                      color: kSecondaryColor,
+                                      fontWeight: FontWeight.w700
                                     ),
-                                    
-                                    // Horário de fechamento
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          'Término dos pedidos',
-                                          style: TextStyle(
-                                            color: kSecondaryColor,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: size.height * 0.018,
-                                          ),
-                                        ),
-                                        Divider(
-                                          height: size.height * 0.006,
-                                          color: Colors.transparent,
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.access_time),
-                                          onPressed: () async {
-                                            final selectedTime = await showTimePicker(
-                                              context: context,
-                                              cancelText: "Cancelar",
-                                              confirmText: "Confirmar",
-                                              hourLabelText: "Horas",
-                                              minuteLabelText: "Minutos",
-                                              helpText: "Insira o horário:",
-                                              initialTime: _getInitialTime(
-                                                controller.horarioFechamentoController,
-                                                widget.bancaModel?.horarioFechamento ?? ""
-                                              ),
-                                              initialEntryMode: TimePickerEntryMode.inputOnly,
-                                              builder: (context, child) {
-                                                return Theme(
-                                                  data: Theme.of(context).copyWith(
-                                                    colorScheme: ColorScheme.light(
-                                                      primary: kPrimaryColor,
-                                                      onPrimary: Colors.white,
-                                                      onSurface: kPrimaryColor,
-                                                    ),
-                                                  ),
-                                                  child: MediaQuery(
-                                                    data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-                                                    child: child!,
-                                                  ),
-                                                );
-                                              },
-                                            );
-
-                                            if (selectedTime != null) {
-                                              final formattedTime = _formatTimeOfDayTo24Hour(selectedTime);
-                                              final aberturaTime = controller.horarioAberturaController.text;
-
-                                              if (aberturaTime.isNotEmpty && 
-                                                  _isClosingTimeInvalid(aberturaTime, formattedTime)) {
-                                                _showSnackbar(context, "O horário de fechamento deve ser maior que o de abertura.");
-                                                return;
-                                              }
-
-                                              setState(() {
-                                                controller.horarioFechamentoController.text = formattedTime;
-                                              });
-                                            }
-                                          },
-                                        ),
-                                        if (controller.horarioFechamentoController.text.isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 8.0),
-                                            child: Text(
-                                              controller.horarioFechamentoController.text,
-                                              style: TextStyle(
-                                                color: kSecondaryColor,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: size.height * 0.018,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
+                                    child: Text(
+                                      'Selecione os dias em que a banca funciona e configure horários específicos',
+                                      style: TextStyle(
+                                        fontSize: size.height * 0.014,
+                                        color: Colors.grey[600],
+                                        fontStyle: FontStyle.italic,
+                                      ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  Wrap(
+                                    spacing: 8.0,
+                                    runSpacing: 8.0,
+                                    children: List.generate(
+                                      controller.diasSemana.length,
+                                      (index) => FilterChip(
+                                        selectedColor: kPrimaryColor.withOpacity(0.2),
+                                        checkmarkColor: kPrimaryColor,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8.0),
+                                          side: BorderSide(
+                                            color: controller.diasSelecionados[index] 
+                                                ? kPrimaryColor 
+                                                : Colors.grey,
+                                            width: 1.0,
+                                          ),
+                                        ),
+                                        label: Text(
+                                          controller.diasSemana[index],
+                                          style: TextStyle(
+                                            color: controller.diasSelecionados[index] 
+                                                ? kPrimaryColor 
+                                                : kSecondaryColor,
+                                          ),
+                                        ),
+                                        selected: controller.diasSelecionados[index],
+                                        onSelected: (_) {
+                                          if (!controller.diasSelecionados[index]) {
+                                            // Se o dia está sendo selecionado
+                                            _mostrarDialogConfiguracaoHorarioEdicao(context, controller, index);
+                                          } else {
+                                            // Se o dia está sendo desmarcado
+                                            controller.toggleDiaSemana(index);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               
                               Divider(
@@ -439,35 +283,14 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                                           checkboxShape: RoundedRectangleBorder(
                                               borderRadius: BorderRadius.circular(5)),
                                           controlAffinity: ListTileControlAffinity.leading,
-                                          // No método onItemTapped ou onde o checkbox do PIX é alterado:
-                                            onChanged: (value) {
-                                              controller.onItemTapped(1);
-                                              controller.setPixBool(controller.isSelected[1]);
-                                              print("valor do pix: ${controller.pixBool}");
-                                            },
+                                          onChanged: (value) {
+                                            controller.onItemTapped(1);
+                                            controller.setPixBool(controller.isSelected[1]);
+                                            print("valor do pix: ${controller.pixBool}");
+                                          },
                                         ),
                                       ),
                                     ),
-                                    
-                                    // Cartão
-                                    /*Flexible(
-                                      child: ListTileTheme(
-                                        horizontalTitleGap: 0,
-                                        child: CheckboxListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          activeColor: kPrimaryColor,
-                                          value: controller.isSelected[2],
-                                          title: Text(
-                                            controller.checkItems[2],
-                                            style: TextStyle(fontSize: size.height * 0.016),
-                                          ),
-                                          checkboxShape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(5)),
-                                          controlAffinity: ListTileControlAffinity.leading,
-                                          onChanged: (value) => controller.onItemTapped(2),
-                                        ),
-                                      ),
-                                    ),*/
                                   ],
                                 ),
                               ),
@@ -518,57 +341,6 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                               ),
                               
                               const VerticalSpacerBox(size: SpacerSize.small),
-                              
-                              // Entregas
-                              /*Text(
-                                'Realizará entregas?',
-                                style: TextStyle(
-                                    fontSize: size.height * 0.018,
-                                    color: kSecondaryColor,
-                                    fontWeight: FontWeight.w700),
-                              ),
-                              SizedBox(
-                                height: size.height * 0.08,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Flexible(
-                                      child: ListTileTheme(
-                                        horizontalTitleGap: 0,
-                                        child: CheckboxListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          activeColor: kPrimaryColor,
-                                          value: controller.delivery[0],
-                                          title: Text(
-                                            'Sim',
-                                            style: TextStyle(fontSize: size.height * 0.018),
-                                          ),
-                                          checkboxShape: const CircleBorder(),
-                                          controlAffinity: ListTileControlAffinity.leading,
-                                          onChanged: (value) => controller.onDeliveryTapped(0),
-                                        ),
-                                      ),
-                                    ),
-                                    Flexible(
-                                      child: ListTileTheme(
-                                        horizontalTitleGap: 0,
-                                        child: CheckboxListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          activeColor: kPrimaryColor,
-                                          value: controller.delivery[1],
-                                          title: Text(
-                                            'Não',
-                                            style: TextStyle(fontSize: size.height * 0.018),
-                                          ),
-                                          checkboxShape: const CircleBorder(),
-                                          controlAffinity: ListTileControlAffinity.leading,
-                                          onChanged: (value) => controller.onDeliveryTapped(1),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),*/
                               
                               // Valor mínimo para frete (exibido apenas se entregas estiver ativo)
                               Visibility(
@@ -633,24 +405,24 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                                 height: size.height * 0.06,
                                 child: PrimaryButton(
                                   text: 'Salvar',
-                                  // No EditStoreScreen, botão Salvar
-                                    onPressed: () async {
-                                      print("Validando formulário...");
-                                      if (controller.formKey.currentState?.validate() ?? false) {
-                                        print("Formulário validado com sucesso.");
+                                  onPressed: () async {
+                                    print("Validando formulário...");
+                                    if (controller.formKey.currentState?.validate() ?? false) {
+                                      print("Formulário validado com sucesso.");
+                                      
+                                      if (controller.verifySelectedFields()) {
+                                        // Em vez de mostrar diálogo, mostrar um indicador de carregamento
+                                        showDialog(
+                                          context: context,
+                                          barrierDismissible: false,
+                                          builder: (context) => const Center(child: CircularProgressIndicator()),
+                                        );
                                         
-                                        if (controller.verifySelectedFields()) {
-                                          // Em vez de mostrar diálogo, mostrar um indicador de carregamento
-                                          showDialog(
-                                            context: context,
-                                            barrierDismissible: false,
-                                            builder: (context) => const Center(child: CircularProgressIndicator()),
-                                          );
-                                          
-                                          // Chamar a edição e aguardar o resultado
-                                          bool success = await controller.editBancaAsync(context, widget.bancaModel!);
-                                          
-                                          // Fechar o diálogo de carregamento
+                                        // CORREÇÃO: Usar o método correto
+                                        bool success = await controller.editBancaComHorarios(context, widget.bancaModel!);
+                                        
+                                        // Fechar o diálogo de carregamento se ainda montado
+                                        if (mounted) {
                                           Navigator.of(context).pop();
                                           
                                           if (success) {
@@ -669,22 +441,23 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                                           } else {
                                             _showSnackbar(context, "Erro ao editar a banca. Verifique os campos e tente novamente.");
                                           }
-                                        } else {
-                                          showDialog(
-                                            context: context,
-                                            builder: (context) => DefaultAlertDialogOneButton(
-                                              title: 'Erro',
-                                              body: controller.textoErro,
-                                              confirmText: 'Voltar',
-                                              onConfirm: () => Get.back(),
-                                              buttonColor: kAlertColor,
-                                            ),
-                                          );
                                         }
                                       } else {
-                                        print("Formulário não validado.");
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => DefaultAlertDialogOneButton(
+                                            title: 'Erro',
+                                            body: controller.textoErro,
+                                            confirmText: 'Voltar',
+                                            onConfirm: () => Get.back(),
+                                            buttonColor: kAlertColor,
+                                          ),
+                                        );
                                       }
+                                    } else {
+                                      print("Formulário não validado.");
                                     }
+                                  }
                                 ),
                               ),
                               
@@ -717,51 +490,181 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                   )),
             ));
   }
-}
 
-// Funções auxiliares
-
-bool _isClosingTimeInvalid(String abertura, String fechamento) {
-  if (abertura.isEmpty || fechamento.isEmpty) return false;
-
-  try {
-    final aberturaParts = abertura.split(":").map(int.parse).toList();
-    final fechamentoParts = fechamento.split(":").map(int.parse).toList();
-
-    if (aberturaParts.length < 2 || fechamentoParts.length < 2) return false;
-
-    final aberturaMinutes = aberturaParts[0] * 60 + aberturaParts[1];
-    final fechamentoMinutes = fechamentoParts[0] * 60 + fechamentoParts[1];
-
-    return fechamentoMinutes <= aberturaMinutes;
-  } catch (e) {
-    print("Erro ao validar horários: $e");
-    return false;
+  void _mostrarDialogConfiguracaoHorarioEdicao(
+    BuildContext context, MyStoreController controller, int index) {
+    // Valores padrão para os horários
+    TimeOfDay horarioAbertura = const TimeOfDay(hour: 8, minute: 0);
+    TimeOfDay horarioFechamento = const TimeOfDay(hour: 18, minute: 0);
+    
+    // Verificar se já existem horários configurados para este dia
+    String nomeDia = controller.convertIndexToDiaSemana(index);
+    if (controller.horariosFuncionamento[nomeDia]?['abertura']?.isNotEmpty == true) {
+      final aberturaParts = controller.horariosFuncionamento[nomeDia]!['abertura']!.split(':');
+      if (aberturaParts.length >= 2) {
+        horarioAbertura = TimeOfDay(
+          hour: int.tryParse(aberturaParts[0]) ?? 8, 
+          minute: int.tryParse(aberturaParts[1]) ?? 0
+        );
+      }
+    }
+    
+    if (controller.horariosFuncionamento[nomeDia]?['fechamento']?.isNotEmpty == true) {
+      final fechamentoParts = controller.horariosFuncionamento[nomeDia]!['fechamento']!.split(':');
+      if (fechamentoParts.length >= 2) {
+        horarioFechamento = TimeOfDay(
+          hour: int.tryParse(fechamentoParts[0]) ?? 18, 
+          minute: int.tryParse(fechamentoParts[1]) ?? 0
+        );
+      }
+    }
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Horário para ${controller.diasSemana[index]}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Horário de abertura'),
+                subtitle: Text(_formatTimeOfDayTo24Hour(horarioAbertura)),
+                trailing: const Icon(Icons.access_time),
+                onTap: () async {
+                  final selectedTime = await showTimePicker(
+                    context: context,
+                    cancelText: "Cancelar",
+                    confirmText: "Confirmar",
+                    hourLabelText: "Horas",
+                    minuteLabelText: "Minutos",
+                    helpText: "Insira o horário:",
+                    initialTime: horarioAbertura,
+                    initialEntryMode: TimePickerEntryMode.inputOnly,
+                    builder: (context, child) {
+                      return Theme(
+                        data: Theme.of(context).copyWith(
+                          colorScheme: const ColorScheme.light(
+                            primary: kPrimaryColor,
+                            onPrimary: Colors.white,
+                            onSurface: kPrimaryColor,
+                          ),
+                        ),
+                        child: MediaQuery(
+                          data: MediaQuery.of(context).copyWith(
+                              alwaysUse24HourFormat: true),
+                          child: child!,
+                        ),
+                      );
+                    },
+                  );
+                  
+                  if (selectedTime != null) {
+                    setState(() {
+                      horarioAbertura = selectedTime;
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                title: const Text('Horário de fechamento'),
+                subtitle: Text(_formatTimeOfDayTo24Hour(horarioFechamento)),
+                trailing: const Icon(Icons.access_time),
+                onTap: () async {
+                  final selectedTime = await showTimePicker(
+                    context: context,
+                    cancelText: "Cancelar",
+                    confirmText: "Confirmar",
+                    hourLabelText: "Horas",
+                    minuteLabelText: "Minutos",
+                    helpText: "Insira o horário:",
+                    initialTime: horarioFechamento,
+                    initialEntryMode: TimePickerEntryMode.inputOnly,
+                    builder: (context, child) {
+                      return Theme(
+                        data: Theme.of(context).copyWith(
+                          colorScheme: const ColorScheme.light(
+                            primary: kPrimaryColor,
+                            onPrimary: Colors.white,
+                            onSurface: kPrimaryColor,
+                          ),
+                        ),
+                        child: MediaQuery(
+                          data: MediaQuery.of(context).copyWith(
+                              alwaysUse24HourFormat: true),
+                          child: child!,
+                        ),
+                      );
+                    },
+                  );
+                  
+                  if (selectedTime != null) {
+                    setState(() {
+                      horarioFechamento = selectedTime;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                final formattedAbertura = _formatTimeOfDayTo24Hour(horarioAbertura);
+                final formattedFechamento = _formatTimeOfDayTo24Hour(horarioFechamento);
+                
+                // Verificar se o horário de fechamento é maior que o de abertura
+                if (_isClosingTimeInvalid(formattedAbertura, formattedFechamento)) {
+                  _showSnackbar(context, "O horário de fechamento deve ser maior que o de abertura.");
+                  return;
+                }
+                
+                controller.definirHorarioDia(
+                  index, 
+                  formattedAbertura, 
+                  formattedFechamento
+                );
+                Navigator.pop(context);
+              },
+              child: const Text('Confirmar'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
-}
 
-void _showSnackbar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      backgroundColor: Colors.red,
-      duration: const Duration(seconds: 2),
-    ),
-  );
-}
+  // Funções auxiliares
+  bool _isClosingTimeInvalid(String abertura, String fechamento) {
+    if (abertura.isEmpty || fechamento.isEmpty) return false;
 
-List<int> _extractHoursAndMinutes(String time) {
-  if (time.isEmpty) return [0, 0];
-  
-  final exp = RegExp(r"(\d{2})+:?(\d{2})+");
-  Match? match = exp.firstMatch(time);
+    try {
+      final aberturaParts = abertura.split(":").map(int.parse).toList();
+      final fechamentoParts = fechamento.split(":").map(int.parse).toList();
 
-  if (match != null) {
-    int hours = int.parse(match.group(1)!);
-    int minutes = int.parse(match.group(2)!);
-    return [hours, minutes];
-  } else {
-    // Se não houver correspondência, retorna uma lista com valores padrão
-    return [0, 0];
+      if (aberturaParts.length < 2 || fechamentoParts.length < 2) return false;
+
+      final aberturaMinutes = aberturaParts[0] * 60 + aberturaParts[1];
+      final fechamentoMinutes = fechamentoParts[0] * 60 + fechamentoParts[1];
+
+      return fechamentoMinutes <= aberturaMinutes;
+    } catch (e) {
+      print("Erro ao validar horários: $e");
+      return false;
+    }
+  }
+
+  void _showSnackbar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 }

@@ -36,7 +36,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         appBar: AppBar(
           backgroundColor: kPrimaryColor,
           iconTheme: const IconThemeData(color: Colors.white),
-          centerTitle: true, // Centraliza o título corretamente
+          centerTitle: true,
           title: Text(
             'Pedidos',
             style: TextStyle(
@@ -51,7 +51,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
           onRefresh: () => controller.fetchOrders(),
           child: Container(
             padding: const EdgeInsets.all(kDefaultPadding - kSmallSize),
-            height: size.height,
             child: controller.pedidos.isEmpty
               ? _buildEmptyState(size)
               : ListView(

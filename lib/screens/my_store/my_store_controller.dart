@@ -42,8 +42,25 @@ class MyStoreController extends GetxController {
   final List<bool> delivery = [false, false];
   final List<String> deliveryItems = ['Sim', 'Não'];
 
+  List<String> diasSemana = [
+    'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
+  ];
+
+  List<bool> diasSelecionados = List.filled(7, false);
+
+  Map<String, Map<String, String>> horariosFuncionamento = {
+    'segunda-feira': {'abertura': '', 'fechamento': ''},
+    'terca-feira': {'abertura': '', 'fechamento': ''},
+    'quarta-feira': {'abertura': '', 'fechamento': ''},
+    'quinta-feira': {'abertura': '', 'fechamento': ''},
+    'sexta-feira': {'abertura': '', 'fechamento': ''},
+    'sábado': {'abertura': '', 'fechamento': ''},
+    'domingo': {'abertura': '', 'fechamento': ''},
+  };
+
   bool deliver = false;
   bool pixBool = false;
+  bool cashBool = false;
 
   MaskTextInputFormatter timeFormatter = MaskTextInputFormatter(
       mask: '#@:%&',
@@ -81,6 +98,17 @@ class MyStoreController extends GetxController {
 
   void onItemTapped(int index) {
     isSelected[index] = !isSelected[index];
+    
+    // Se alternar o índice 1 (PIX), atualiza o estado do pixBool
+    if (index == 1) {
+      pixBool = isSelected[1];
+    }
+    
+    // Se alternar o índice 0 (Dinheiro), atualiza o estado do cashBool
+    if (index == 0) {
+      cashBool = isSelected[0];
+    }
+    
     update();
   }
 
@@ -96,6 +124,217 @@ class MyStoreController extends GetxController {
     update();
   }
 
+  void carregarDadosBancaParaEdicao(BancaModel banca) {
+    log("=== INICIANDO CARREGAMENTO DOS DADOS DA BANCA ===");
+    log("Banca ID: ${banca.id}");
+    log("Nome: ${banca.nome}");
+    log("Formas de pagamento: '${banca.formasDePagamento}'");
+    log("PIX: '${banca.pix}'");
+    log("Faz entrega: ${banca.fazEntrega}");
+    
+    // ✅ Carregar dados básicos
+    _nomeBancaController.text = banca.nome ?? '';
+    _pixController.text = banca.pix ?? '';
+    _quantiaMinController.text = banca.precoMin ?? '';
+    
+    // ✅ Carregar horários gerais
+    _horarioAberturaController.text = banca.horarioAbertura ?? '';
+    _horarioFechamentoController.text = banca.horarioFechamento ?? '';
+    
+    // ✅ Carregar horários específicos por dia se existirem
+    if (banca.horariosFuncionamento != null && banca.horariosFuncionamento!.isNotEmpty) {
+      try {
+        Map<String, dynamic> horarios = banca.horariosFuncionamento!;
+        
+        // Resetar arrays
+        diasSelecionados = List.filled(7, false);
+        horariosFuncionamento = {
+          'segunda-feira': {'abertura': '', 'fechamento': ''},
+          'terca-feira': {'abertura': '', 'fechamento': ''},
+          'quarta-feira': {'abertura': '', 'fechamento': ''},
+          'quinta-feira': {'abertura': '', 'fechamento': ''},
+          'sexta-feira': {'abertura': '', 'fechamento': ''},
+          'sábado': {'abertura': '', 'fechamento': ''},
+          'domingo': {'abertura': '', 'fechamento': ''},
+        };
+        
+        // Carregar horários específicos
+        horarios.forEach((dia, valores) {
+          if (valores is Map && valores['abertura'] != null && valores['fechamento'] != null) {
+            String abertura = valores['abertura'].toString();
+            String fechamento = valores['fechamento'].toString();
+            
+            if (abertura.isNotEmpty && fechamento.isNotEmpty) {
+              String diaCorreto = _normalizarNomeDia(dia);
+              
+              horariosFuncionamento[diaCorreto] = {
+                'abertura': abertura,
+                'fechamento': fechamento
+              };
+              
+              int index = _obterIndiceDia(diaCorreto);
+              if (index >= 0) {
+                diasSelecionados[index] = true;
+              }
+            }
+          }
+        });
+      } catch (e) {
+        log("Erro ao carregar horários específicos: $e");
+        _carregarHorariosGeraisParaTodosOsDias();
+      }
+    } else {
+      _carregarHorariosGeraisParaTodosOsDias();
+    }
+    
+    // ✅ CORREÇÃO PRINCIPAL: Carregar formas de pagamento ANTES de configurar entrega
+    _carregarFormasPagamentoCorrigido(banca);
+    
+    // ✅ Carregar configurações de entrega
+    deliver = banca.fazEntrega ?? false;
+    _atualizarCheckboxEntrega();
+    
+    log("=== DADOS CARREGADOS COM SUCESSO ===");
+    log("Estado final - Dinheiro: ${isSelected[0]}, PIX: ${isSelected[1]}, Cartão: ${isSelected[2]}");
+    log("pixBool: $pixBool, deliver: $deliver");
+    
+    update();
+  }
+
+  // ✅ NOVA FUNÇÃO CORRIGIDA para carregar formas de pagamento
+  void _carregarFormasPagamentoCorrigido(BancaModel banca) {
+    log("--- Carregando formas de pagamento ---");
+    
+    // Resetar TODOS os estados relacionados a pagamento
+    isSelected.fillRange(0, isSelected.length, false);
+    pixBool = false;
+    cashBool = false;
+    
+    // Verificar se formasDePagamento existe e não está vazio
+    String? formasPagamento = banca.formasDePagamento;
+    
+    if (formasPagamento != null && formasPagamento.isNotEmpty) {
+      log("Formas de pagamento encontradas: '$formasPagamento'");
+      
+      // Dividir por vírgula e processar cada forma
+      List<String> formas = formasPagamento.split(',');
+      
+      for (String forma in formas) {
+        String formaTrimmed = forma.trim();
+        log("Processando forma: '$formaTrimmed'");
+        
+        // Converter string para número (1=Dinheiro, 2=PIX, 3=Cartão)
+        int? formaNumero = int.tryParse(formaTrimmed);
+        
+        if (formaNumero != null) {
+          switch (formaNumero) {
+            case 1: // Dinheiro
+              isSelected[0] = true;
+              cashBool = true;
+              log("✅ Dinheiro ativado");
+              break;
+            case 2: // PIX
+              isSelected[1] = true;
+              pixBool = true;
+              log("✅ PIX ativado");
+              break;
+            case 3: // Cartão
+              isSelected[2] = true;
+              log("✅ Cartão ativado");
+              break;
+            default:
+              log("⚠️ Forma de pagamento inválida: $formaNumero");
+          }
+        } else {
+          log("⚠️ Não foi possível converter '$formaTrimmed' para número");
+        }
+      }
+    } else {
+      log("⚠️ Nenhuma forma de pagamento encontrada, usando Dinheiro como padrão");
+      // Padrão: Dinheiro ativado
+      isSelected[0] = true;
+      cashBool = true;
+    }
+    
+    // ✅ CORREÇÃO: Se existe chave PIX mas PIX não foi ativado, ativar automaticamente
+    if (!pixBool && banca.pix != null && banca.pix!.isNotEmpty) {
+      log("🔧 CORREÇÃO: Encontrada chave PIX '${banca.pix}' mas PIX não estava ativado");
+      log("🔧 Ativando PIX automaticamente...");
+      isSelected[1] = true;
+      pixBool = true;
+    }
+    
+    // Log do estado final
+    log("Estado final das formas de pagamento:");
+    log("- Dinheiro: ${isSelected[0]} (cashBool: $cashBool)");
+    log("- PIX: ${isSelected[1]} (pixBool: $pixBool)");
+    log("- Cartão: ${isSelected[2]}");
+  }
+
+  void _carregarHorariosGeraisParaTodosOsDias() {
+    String abertura = _horarioAberturaController.text;
+    String fechamento = _horarioFechamentoController.text;
+    
+    if (abertura.isNotEmpty && fechamento.isNotEmpty) {
+      // Aplicar horários gerais para todos os dias
+      for (int i = 0; i < 7; i++) {
+        String nomeDia = convertIndexToDiaSemana(i);
+        horariosFuncionamento[nomeDia] = {
+          'abertura': abertura,
+          'fechamento': fechamento
+        };
+        diasSelecionados[i] = true;
+      }
+    }
+  }
+
+  void _atualizarCheckboxEntrega() {
+    // Resetar delivery checkboxes
+    delivery.fillRange(0, delivery.length, false);
+    
+    if (deliver) {
+      delivery[0] = true; // Sim
+    } else {
+      delivery[1] = true; // Não
+    }
+  }
+
+  String _normalizarNomeDia(String dia) {
+    Map<String, String> mapeamento = {
+      'segunda': 'segunda-feira',
+      'terca': 'terca-feira',
+      'quarta': 'quarta-feira',
+      'quinta': 'quinta-feira',
+      'sexta': 'sexta-feira',
+      'sabado': 'sábado',
+      'domingo': 'domingo',
+      // Aceitar também os nomes completos
+      'segunda-feira': 'segunda-feira',
+      'terca-feira': 'terca-feira',
+      'quarta-feira': 'quarta-feira',
+      'quinta-feira': 'quinta-feira',
+      'sexta-feira': 'sexta-feira',
+      'sábado': 'sábado',
+      'domingo': 'domingo',
+    };
+    
+    return mapeamento[dia.toLowerCase()] ?? dia.toLowerCase();
+  }
+
+  int _obterIndiceDia(String dia) {
+    Map<String, int> indices = {
+      'segunda-feira': 0,
+      'terca-feira': 1,
+      'quarta-feira': 2,
+      'quinta-feira': 3,
+      'sexta-feira': 4,
+      'sábado': 5,
+      'domingo': 6,
+    };
+    
+    return indices[dia] ?? -1;
+  }
+
   void setDeliver(bool value) {
     deliver = value;
     update();
@@ -105,9 +344,15 @@ class MyStoreController extends GetxController {
     pixBool = value;
     update();
   }
+  
+  void setCashBool(bool value){
+    cashBool = value;
+    update();
+  }
 
   void setFeira(String value) {
     feira = value;
+    print("Feira selecionada: $value");
     update();
   }
 
@@ -121,6 +366,7 @@ class MyStoreController extends GetxController {
   String? get imagePath => _imagePath;
 
   File? get selectedImage => _selectedImage;
+  File? get imgFile => _selectedImage;
 
   set selectedImage(File? value) {
     _selectedImage = value;
@@ -156,7 +402,6 @@ class MyStoreController extends GetxController {
     update();
   }
 
-  // Adicionar ao MyStoreController
   Future<bool> editBancaAsync(BuildContext context, BancaModel banca) async {
     try {
       // Validações adicionais
@@ -222,16 +467,127 @@ class MyStoreController extends GetxController {
     update();
   }
 
+  Future<bool> editBancaComHorarios(BuildContext context, BancaModel banca) async {
+      try {
+        // Verificações adicionais
+        if (nomeBancaController.text.isEmpty && 
+            !verificarDiasSelecionados() &&
+            quantiaMinController.text.isEmpty && 
+            _imagePath == null) {
+          print("Nenhum campo foi alterado");
+          return false;
+        }
+
+        // Se nenhum dia específico foi configurado mas há horários gerais, aplicar para todos
+        if (!verificarDiasSelecionados() && 
+            horarioAberturaController.text.isNotEmpty && 
+            horarioFechamentoController.text.isNotEmpty) {
+          _carregarHorariosGeraisParaTodosOsDias();
+        }
+
+        editSucess = await myStoreRepository.editarBancaComHorarios(
+          nomeBancaController.text.trim(),
+          horarioAberturaController.text.trim(),
+          horarioFechamentoController.text.trim(),
+          quantiaMinController.text.trim(),
+          feira,
+          _imagePath,
+          isSelected,
+          pixController.text.trim(),
+          deliver,
+          banca,
+          horariosFuncionamento // Passar os horários específicos
+        );
+        
+        return editSucess;
+      } catch (e) {
+        print("Erro ao editar banca: $e");
+        return false;
+      }
+    }
+
+    // Validação atualizada para considerar os dias específicos
+    bool verifyFieldsForEdit() {
+      // Verificar se pelo menos um dia de funcionamento foi selecionado e configurado
+      if (!verificarDiasSelecionados()) {
+        // Se nenhum dia está configurado, verificar se os horários gerais estão preenchidos
+        if (horarioAberturaController.text.isEmpty || horarioFechamentoController.text.isEmpty) {
+          textoErro = 'Configure pelo menos um dia de funcionamento ou preencha os horários gerais';
+          return false;
+        }
+      }
+      
+      // Verificar se forma de pagamento foi selecionada
+      if (!isSelected.contains(true)) {
+        textoErro = 'Selecione pelo menos uma forma de pagamento';
+        return false;
+      }
+      
+      // Verificar PIX se estiver selecionado
+      if (isSelected[1] && pixController.text.isEmpty) {
+        textoErro = 'Insira a chave PIX';
+        return false;
+      }
+      
+      return true;
+    }
+
+  void toggleDiaSemana(int index) {
+    diasSelecionados[index] = !diasSelecionados[index];
+    
+    // Se desmarcar o dia, limpar os horários desse dia
+    if (!diasSelecionados[index]) {
+      String nomeDia = convertIndexToDiaSemana(index);
+      horariosFuncionamento[nomeDia] = {'abertura': '', 'fechamento': ''};
+    }
+    
+    update();
+  }
+
+  void definirHorarioDia(int index, String abertura, String fechamento) {
+    String nomeDia = convertIndexToDiaSemana(index);
+    print("Definindo horário para $nomeDia: abertura=$abertura, fechamento=$fechamento");
+    
+    horariosFuncionamento[nomeDia] = {'abertura': abertura, 'fechamento': fechamento};
+    diasSelecionados[index] = true;
+    
+    print("Horários configurados: ${horariosFuncionamento[nomeDia]}");
+    update();
+  }
+
+  String convertIndexToDiaSemana(int index) {
+    switch (index) {
+    case 0: return 'segunda-feira';
+    case 1: return 'terca-feira';
+    case 2: return 'quarta-feira';
+    case 3: return 'quinta-feira';
+    case 4: return 'sexta-feira';
+    case 5: return 'sábado';
+    case 6: return 'domingo';
+    default: return 'segunda-feira';
+    }
+  }
+
+  bool verificarDiasSelecionados() {
+    for (int i = 0; i < diasSelecionados.length; i++) {
+      if (diasSelecionados[i]) {
+        String nomeDia = convertIndexToDiaSemana(i);
+        if (horariosFuncionamento[nomeDia]?['abertura']?.isNotEmpty == true &&
+            horariosFuncionamento[nomeDia]?['fechamento']?.isNotEmpty == true) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   void editBanca(BuildContext context, BancaModel banca) async {
-    // Aqui verificamos quais campos foram alterados
-    // Deixamos vazios os que não foram alterados para manter os valores originais
     String nome = _nomeBancaController.text.trim();
     String horarioAbertura = _horarioAberturaController.text.trim();
     String horarioFechamento = _horarioFechamentoController.text.trim();
     String precoMin = _quantiaMinController.text.trim();
     String pix = _pixController.text.trim();
-    
-    // Nota para o log, apenas para debug
+
     log("Editando banca: Nome: ${nome.isEmpty ? 'não alterado' : nome}");
     log("Horário Abertura: ${horarioAbertura.isEmpty ? 'não alterado' : horarioAbertura}");
     log("Horário Fechamento: ${horarioFechamento.isEmpty ? 'não alterado' : horarioFechamento}");
@@ -239,29 +595,110 @@ class MyStoreController extends GetxController {
     log("PIX: ${pix.isEmpty ? 'não alterado' : pix}");
     log("Imagem selecionada: ${_imagePath == null ? 'não alterada' : 'nova imagem'}");
     
-    editSucess = await myStoreRepository.editarBanca(
-        nome,
-        horarioAbertura,
-        horarioFechamento,
-        precoMin,
-        feira,
-        _imagePath,
-        isSelected,
-        pix,
-        deliver,
-        banca);
+    // Log dos horários específicos
+    log("Dias selecionados: ${diasSelecionados}");
+    for (int i = 0; i < diasSemana.length; i++) {
+      if (diasSelecionados[i]) {
+        String nomeDia = convertIndexToDiaSemana(i);
+        log("Dia ${diasSemana[i]}: Abertura=${horariosFuncionamento[nomeDia]?['abertura']}, Fechamento=${horariosFuncionamento[nomeDia]?['fechamento']}");
+      }
+    }
+    
+    // Mostrar loading
+    mostrarLoading(context);
+    
+    try {
+      // Verificar se horários gerais podem ser usados como fallback
+      if (!verificarDiasSelecionados() && horarioAbertura.isNotEmpty && horarioFechamento.isNotEmpty) {
+        log("Usando horários gerais para todos os dias na edição");
+        // Preencher horários de todos os dias com os horários gerais
+        horariosFuncionamento = {
+          'segunda-feira': {'abertura': horarioAbertura, 'fechamento': horarioFechamento},
+          'terca-feira': {'abertura': horarioAbertura, 'fechamento': horarioFechamento},
+          'quarta-feira': {'abertura': horarioAbertura, 'fechamento': horarioFechamento},
+          'quinta-feira': {'abertura': horarioAbertura, 'fechamento': horarioFechamento},
+          'sexta-feira': {'abertura': horarioAbertura, 'fechamento': horarioFechamento},
+          'sábado': {'abertura': horarioAbertura, 'fechamento': horarioFechamento},
+          'domingo': {'abertura': horarioAbertura, 'fechamento': horarioFechamento},
+        };
+        // Marcar todos os dias como selecionados
+        diasSelecionados = List.filled(7, true);
+        update();
+      }
+      
+      // Usar o novo método que suporta horários específicos
+      editSucess = await myStoreRepository.editarBancaComHorarios(
+          nome,
+          horarioAbertura,
+          horarioFechamento,
+          precoMin,
+          feira,
+          _imagePath,
+          isSelected,
+          pix,
+          deliver,
+          banca,
+          horariosFuncionamento); // Passar os horários específicos
+          
+      // Remover loading
+      removerLoading();
+          
+      if (editSucess) {
+        // Tenta atualizar o HomeScreenController se estiver disponível
+        if (Get.isRegistered<HomeScreenController>()) {
+          final homeController = Get.find<HomeScreenController>();
+          homeController.reloadEverything(); // Recarregar tudo do zero
+        }
         
-    if (editSucess) {
-      // ignore: use_build_context_synchronously
-      Get.offAll(() => const HomeScreen());
-    } else {
+        // ignore: use_build_context_synchronously
+        showDialog(
+          context: context,
+          builder: (context) => DefaultAlertDialogOneButton(
+            title: 'Sucesso',
+            body: 'Sua banca foi editada com sucesso',
+            confirmText: 'Ok',
+            onConfirm: () {
+              Get.offAll(() => const HomeScreen());
+            },
+            buttonColor: kSuccessColor,
+          )
+        );
+      } else {
+        if (nome.isEmpty && !verificarDiasSelecionados() && horarioAbertura.isEmpty && horarioFechamento.isEmpty) {
+          textoErro = "Nenhuma alteração foi feita";
+        } else if (!isSelected.contains(true)) {
+          textoErro = "Adicione pelo menos um método de pagamento";
+        } else if (isSelected[1] && pix.isEmpty) {
+          textoErro = "Insira a chave PIX";
+        } else {
+          textoErro = "Ocorreu um erro ao editar a banca. Verifique os campos e tente novamente.";
+          log("Ocorreu um erro, verifique os campos");
+        }
+        
+        // ignore: use_build_context_synchronously
+        showDialog(
+          context: context,
+          builder: (context) => DefaultAlertDialogOneButton(
+            title: 'Erro',
+            body: textoErro,
+            confirmText: 'Ok',
+            onConfirm: () {
+              Get.back();
+            },
+            buttonColor: kAlertColor,
+          )
+        );
+      }
+    } catch (e) {
+      removerLoading();
+      log("Erro ao editar banca: $e");
       Get.dialog(
         AlertDialog(
           title: const Text('Erro'),
-          content: const Text("Ocorreu um erro ao editar a banca. Verifique os campos e tente novamente."),
+          content: Text("${e.toString()}\n Procure o suporte com a equipe LMTS"),
           actions: [
             TextButton(
-              child: const Text('OK'),
+              child: const Text('Voltar'),
               onPressed: () {
                 Get.back();
               },
@@ -272,19 +709,83 @@ class MyStoreController extends GetxController {
     }
   }
 
+  void mostrarLoading(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+  }
+
+  void removerLoading() {
+    if (Get.isDialogOpen ?? false) {
+      Get.back();
+    }
+  }
+
   void adicionarBanca(BuildContext context) async {
+    // Mostrar loading
+    mostrarLoading(context);
+    
     try {
+      print("Horários gerais: Abertura=${_horarioAberturaController.text}, Fechamento=${_horarioFechamentoController.text}");
+      print("Dias selecionados: ${diasSelecionados}");
+      
+      // Imprimir horários configurados para cada dia
+      for (int i = 0; i < diasSemana.length; i++) {
+        if (diasSelecionados[i]) {
+          String nomeDia = convertIndexToDiaSemana(i);
+          print("Dia ${diasSemana[i]}: Abertura=${horariosFuncionamento[nomeDia]?['abertura']}, Fechamento=${horariosFuncionamento[nomeDia]?['fechamento']}");
+        }
+      }
+      
+      // Verificar se horários gerais podem ser usados como fallback
+      if (!verificarDiasSelecionados() && _horarioAberturaController.text.isNotEmpty && _horarioFechamentoController.text.isNotEmpty) {
+        print("Usando horários gerais para todos os dias");
+        // Preencher horários de todos os dias com os horários gerais
+        horariosFuncionamento = {
+          'segunda-feira': {'abertura': _horarioAberturaController.text, 'fechamento': _horarioFechamentoController.text},
+          'terca-feira': {'abertura': _horarioAberturaController.text, 'fechamento': _horarioFechamentoController.text},
+          'quarta-feira': {'abertura': _horarioAberturaController.text, 'fechamento': _horarioFechamentoController.text},
+          'quinta-feira': {'abertura': _horarioAberturaController.text, 'fechamento': _horarioFechamentoController.text},
+          'sexta-feira': {'abertura': _horarioAberturaController.text, 'fechamento': _horarioFechamentoController.text},
+          'sábado': {'abertura': _horarioAberturaController.text, 'fechamento': _horarioFechamentoController.text},
+          'domingo': {'abertura': _horarioAberturaController.text, 'fechamento': _horarioFechamentoController.text},
+        };
+        // Marcar todos os dias como selecionados
+        diasSelecionados = List.filled(7, true);
+        update();
+      } else if (!verificarDiasSelecionados()) {
+        removerLoading();
+        Get.snackbar(
+          'Erro', 
+          'Configure pelo menos um dia de funcionamento ou preencha os horários gerais',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+      
       adcSucess = await myStoreRepository.adicionarBanca(
-          _nomeBancaController.text,
-          _horarioAberturaController.text,
-          _horarioFechamentoController.text,
-          _quantiaMinController.text,
-          feira,
-          _imagePath,
-          isSelected,
-          deliver,
-          _pixController.text);
-          
+        _nomeBancaController.text,
+        _horarioAberturaController.text,
+        _horarioFechamentoController.text,
+        _quantiaMinController.text,
+        feira,
+        _imagePath,
+        isSelected,
+        deliver,
+        _pixController.text,
+        horariosFuncionamento
+      );
+        
+      // Remover loading
+      removerLoading();
+        
       if (adcSucess) {
         // Tenta atualizar o HomeScreenController se estiver disponível
         if (Get.isRegistered<HomeScreenController>()) {
@@ -294,32 +795,46 @@ class MyStoreController extends GetxController {
         
         // ignore: use_build_context_synchronously
         showDialog(
-            context: context,
-            builder: (context) => DefaultAlertDialogOneButton(
-                  title: 'Sucesso',
-                  body: 'Sua banca foi criada',
-                  confirmText: 'Ok',
-                  onConfirm: () {
-                    Get.offAll(() => const HomeScreen());
-                  },
-                  buttonColor: kSuccessColor,
-                ));
+          context: context,
+          builder: (context) => DefaultAlertDialogOneButton(
+            title: 'Sucesso',
+            body: 'Sua banca foi criada',
+            confirmText: 'Ok',
+            onConfirm: () {
+              Get.offAll(() => const HomeScreen());
+            },
+            buttonColor: kSuccessColor,
+          )
+        );
       } else {
         if (_nomeBancaController.text.isEmpty == true) {
           textoErro = "Insira um nome";
-        } else if (_horarioAberturaController.text.isEmpty) {
-          textoErro = "Insira o horário de abertura";
-        } else if (_horarioFechamentoController.text.isEmpty) {
-          textoErro = "Insira o horário de fechamento";
-        } else if (_quantiaMinController.text.isEmpty) {
-          textoErro = "Insira uma quantia mínima para entrega";
         } else if (!isSelected.contains(true)) {
           textoErro = "Adicione pelo menos um método de pagamento";
+        } else if (isSelected[1] && _pixController.text.isEmpty) {
+          textoErro = "Insira a chave PIX";
         } else {
+          textoErro = "Ocorreu um erro ao adicionar a banca. Verifique os campos e tente novamente.";
           log("Ocorreu um erro, verifique os campos");
         }
+        
+        // ignore: use_build_context_synchronously
+        showDialog(
+          context: context,
+          builder: (context) => DefaultAlertDialogOneButton(
+            title: 'Erro',
+            body: textoErro,
+            confirmText: 'Ok',
+            onConfirm: () {
+              Get.back();
+            },
+            buttonColor: kAlertColor,
+          )
+        );
       }
     } catch (e) {
+      removerLoading();
+      log("Erro ao adicionar banca: $e");
       Get.dialog(
         AlertDialog(
           title: const Text('Erro'),
@@ -343,20 +858,31 @@ class MyStoreController extends GetxController {
   }
 
   bool verifyFields() {
-    // Para edição, consideramos como válido quando:
-    // - Pelo menos um campo foi editado
-    // - E pelo menos uma forma de pagamento está selecionada
-    bool hasChanges = _nomeBancaController.text.isNotEmpty || 
-                      _horarioAberturaController.text.isNotEmpty ||
-                      _horarioFechamentoController.text.isNotEmpty ||
-                      _quantiaMinController.text.isNotEmpty ||
-                      _pixController.text.isNotEmpty ||
-                      _imagePath != null;
-                      
-    bool hasPagamento = isSelected.contains(true);
+
+    // Verificar nome da banca
+    if (nomeBancaController.text.isEmpty) {
+      textoErro = 'Preencha o nome da banca';
+      return false;
+    }
     
-    if (!hasPagamento) {
-      textoErro = "Selecione pelo menos uma forma de pagamento";
+    // Verificar se pelo menos um dia de funcionamento foi selecionado e configurado
+    if (!verificarDiasSelecionados()) {
+      // Se nenhum dia está configurado, então verificamos se os horários gerais estão preenchidos
+      if (horarioAberturaController.text.isEmpty || horarioFechamentoController.text.isEmpty) {
+        textoErro = 'Configure pelo menos um dia de funcionamento ou preencha os horários gerais';
+        return false;
+      }
+    }
+    
+    // Verificar se forma de pagamento foi selecionada
+    if (!isSelected.contains(true)) {
+      textoErro = 'Selecione pelo menos uma forma de pagamento';
+      return false;
+    }
+    
+    // Verificar PIX se estiver selecionado
+    if (isSelected[1] && pixController.text.isEmpty) {
+      textoErro = 'Insira a chave PIX';
       return false;
     }
     

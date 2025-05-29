@@ -7,6 +7,7 @@ import 'package:thunderapp/shared/constants/app_text_constants.dart';
 import 'package:thunderapp/shared/core/models/banca_model.dart';
 import 'package:thunderapp/shared/core/user_storage.dart';
 import '../../shared/core/models/feira_model.dart';
+import 'dart:math' as math;
 
 class MyStoreRepository {
   List<String> checkItems = [];
@@ -38,6 +39,7 @@ class MyStoreRepository {
 
       List<dynamic> responseData = response.data['feiras'];
 
+
       for (int i = 0; i < responseData.length; i++) {
         feira = FeiraModel(
             id: responseData[i]["id"],
@@ -48,6 +50,9 @@ class MyStoreRepository {
             associacaoId: responseData[i]["associacao_id"]);
         feiras.add(feira);
       }
+
+      log("Resposta da API feiras: ${response.data}");
+      log("Feiras carregadas: ${feiras.length}");
 
       if (response.statusCode == 200 ||
           response.statusCode == 201) {
@@ -237,146 +242,451 @@ class MyStoreRepository {
     }
   }
 
-  Future<bool> adicionarBanca(
-      String nome,
-      String horarioAbertura,
-      String horarioFechamento,
-      String precoMin,
-      String feiraId,
-      String? imgPath,
-      List<bool> isSelected,
-      bool? entrega,
-      String? pix) async {
-    // Resetar variáveis para nova adição
-    formasPagamento = '';
-    checkItems = [];
-    
-    // Se nenhuma forma de pagamento foi selecionada, retorna falso
-    if (isSelected.every((element) => element == false)) {
-      log("Erro: Nenhuma forma de pagamento selecionada");
-      return false;
+  Future<bool> editarBancaComHorarios(
+    String nome,
+    String horarioAbertura,
+    String horarioFechamento,
+    String precoMin,
+    String feiraId,
+    String? imgPath,
+    List<bool> isSelected,
+    String pix,
+    bool? fazEntrega, // MUDANÇA: fazEntrega ao invés de entrega
+    BancaModel banca,
+    Map<String, Map<String, String>>? horariosFuncionamento) async {
+  
+  // Resetar variáveis para nova edição
+  formasPagamento = '';
+  checkItems = [];
+  
+  // Verificar formas de pagamento selecionadas
+  for (int i = 0; i < isSelected.length; i++) {
+    if (isSelected[i] == true) {
+      checkItems.add((i + 1).toString());
     }
-    
-    // Tratamento do preço
+  }
+  
+  if (checkItems.isEmpty) {
+    log("Erro: Nenhuma forma de pagamento selecionada");
+    return false;
+  }
+  
+  for (int i = 0; i < checkItems.length; i++) {
+    formasPagamento += '${checkItems[i]},';
+  }
+  
+  if (formasPagamento.isNotEmpty) {
+    formasPagamento = formasPagamento.substring(0, formasPagamento.length - 1);
+  }
+
+  String? userToken = await userStorage.getUserToken();
+  if (userToken == null || userToken.isEmpty) {
+    log("Erro: Token de usuário não encontrado");
+    return false;
+  }
+
+  String? userId = await userStorage.getUserId();
+  log("=== DEBUG TOKEN ===");
+  log("User ID: $userId");
+  log("Token (primeiros 20 chars): ${userToken.substring(0, math.min(20, userToken.length))}...");
+  log("Banca ID sendo editada: ${banca.getId}");
+  log("Agricultor ID da banca: ${banca.agricultorId}");
+  log("URL completa: $kBaseURL/bancas/${banca.getId}");
+  
+  // Verificar se o usuário é dono da banca
+  if (userId != null && banca.agricultorId.toString() != userId) {
+    log("⚠️ ALERTA: Usuário ($userId) tentando editar banca de outro agricultor (${banca.agricultorId})");
+  }
+  
+  // Tratamento do preço mínimo
+  String precoMinimo = '';
+  if (precoMin.isNotEmpty) {
     const find = "R\$";
     const replace = "";
     var pMinimo = precoMin.replaceAll(find, replace);
-    var preMinimo = pMinimo.replaceAll(",", ".");
+    precoMinimo = pMinimo.replaceAll(",", ".");
+  }
 
-    // Verificar formas de pagamento selecionadas
-    for (int i = 0; i < isSelected.length; i++) {
-      if (isSelected[i] == true) {
-        checkItems.add((i + 1).toString());
-      }
-    }
+  try {
+    Map<String, dynamic> formFields = {};
     
-    for (int i = 0; i < checkItems.length; i++) {
-      formasPagamento += '${checkItems[i]},';
-    }
+    // Adiciona campos somente se foram alterados
+    if (nome.isNotEmpty) formFields["nome"] = nome;
+    formFields["descricao"] = "loja";
     
-    // Remove a última vírgula da string
-    if (formasPagamento.isNotEmpty) {
-      formasPagamento = formasPagamento.substring(0, formasPagamento.length - 1);
-    }
-    
-    String? userToken = await userStorage.getUserToken();
-    if (userToken == null || userToken.isEmpty) {
-      log("Erro: Token de usuário não encontrado");
-      return false;
-    }
-    
-    String? userId = await userStorage.getUserId();
-    if (userId == null || userId.isEmpty) {
-      log("Erro: ID de usuário não encontrado");
-      return false;
-    }
-    
-    try {
-      // Campos obrigatórios para adicionar banca
-      Map<String, dynamic> formFields = {
-        "nome": nome,
-        "descricao": 'loja',
-        "horario_abertura": horarioAbertura,
-        "horario_fechamento": horarioFechamento,
-        "formas_pagamento": formasPagamento,
-        "agricultor_id": userId.toString(),
-        "feira_id": feiraId,
-      };
+    // Processar horários de funcionamento específicos
+    if (horariosFuncionamento != null && horariosFuncionamento.isNotEmpty) {
+      // ✅ CONVERTER para formato Array que a API espera
+      Map<String, List<String>> horariosFormatoAPI = {};
       
-      // Adiciona imagem se foi fornecida
-      if (imgPath != null) {
-        try {
-          formFields["imagem"] = await MultipartFile.fromFile(
-            imgPath,
-            filename: imgPath.split("\\").last,
-          );
-        } catch (e) {
-          log("Erro ao carregar imagem: $e");
-          // Continuar sem a imagem se houver erro
+      horariosFuncionamento.forEach((dia, horarios) {
+        if (horarios['abertura']!.isNotEmpty && horarios['fechamento']!.isNotEmpty) {
+          // Formato correto: Array [abertura, fechamento]
+          horariosFormatoAPI[dia] = [horarios['abertura']!, horarios['fechamento']!];
         }
-      }
+      });
       
-      // Adiciona campos opcionais
-      // Comentado para não enviar bairro_entrega
-      /*if (entrega == true) {
-        formFields["entrega"] = "true";
-        formFields["preco_minimo"] = preMinimo;
-        formFields["bairro_entrega"] = '1=>3.50';
+      if (horariosFormatoAPI.isNotEmpty) {
+        formFields["horarios_funcionamento"] = jsonEncode(horariosFormatoAPI);
+        log("Horários específicos para edição: ${jsonEncode(horariosFormatoAPI)}");
+        
+        // Usar o primeiro horário como horário geral
+        var primeiroHorario = horariosFormatoAPI.values.first;
+        formFields["horario_abertura"] = primeiroHorario[0];
+        formFields["horario_fechamento"] = primeiroHorario[1];
       } else {
-        formFields["entrega"] = "false";
-      }*/
-
-      // Adiciona entrega como campo obrigatório
-      formFields["entrega"] = entrega == true ? "true" : "false";
-      
-      // Adiciona PIX se fornecido
-      if (pix != null && pix.isNotEmpty) {
-        formFields["pix"] = pix;
+        // Usar getters do modelo
+        formFields["horario_abertura"] = horarioAbertura.isNotEmpty 
+            ? horarioAbertura 
+            : banca.getHorarioAbertura;
+        
+        formFields["horario_fechamento"] = horarioFechamento.isNotEmpty 
+            ? horarioFechamento 
+            : banca.getHorarioFechamento;
       }
+    } else {
+      // Usar getters do modelo
+      formFields["horario_abertura"] = horarioAbertura.isNotEmpty 
+          ? horarioAbertura 
+          : banca.getHorarioAbertura;
+      
+      formFields["horario_fechamento"] = horarioFechamento.isNotEmpty 
+          ? horarioFechamento 
+          : banca.getHorarioFechamento;
+    }
+    
+    if (precoMin.isNotEmpty) formFields["preco_minimo"] = precoMinimo;
+    
+    formFields["formas_pagamento"] = formasPagamento;
+    
+    // MUDANÇA: usar fazEntrega
+    formFields["entrega"] = fazEntrega == true ? "true" : "false";
+    
+    if (pix.isNotEmpty) formFields["pix"] = pix;
+    
+    if (imgPath != null) {
+      try {
+        formFields["imagem"] = await MultipartFile.fromFile(
+          imgPath,
+          filename: imgPath.split(Platform.pathSeparator).last,
+        );
+      } catch (e) {
+        log("Erro ao carregar imagem: $e");
+      }
+    }
 
-      body = FormData.fromMap(formFields);
-      log("Campos para adicionar banca: ${body.fields}");
+    // ADAPTADO: usar getter do seu modelo
+    if (feiraId.isNotEmpty) {
+      formFields["feira_id"] = int.tryParse(feiraId) ?? banca.getFeiraId;
+    }
+    
+    body = FormData.fromMap(formFields);
+    
+    Map<String, dynamic> encodableFields = Map.from(formFields);
+    encodableFields.removeWhere((key, value) => value is MultipartFile);
+    log("Campos para edição: ${jsonEncode(encodableFields)}");
+    log("URL: $kBaseURL/bancas/${banca.getId}"); // ADAPTADO: usar getter
 
-      Response response = await _dio.post(
-        '$kBaseURL/bancas',
-        options: Options(headers: {
+    Response response = await _dio.post('$kBaseURL/bancas/${banca.getId}',
+      options: Options(
+        headers: {
+          "Authorization": "Bearer $userToken",
           "Content-Type": "multipart/form-data",
-          "Authorization": "Bearer $userToken"
-        }),
-        data: body,
-      );
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        log('Cadastro da banca bem sucedido');
-        return true;
-      } else {
-        var errorMessage = "Erro desconhecido";
-        if (response.data is Map && response.data['errors'] != null) {
-          errorMessage = response.data['errors'].toString();
-        }
-        log('Erro no cadastro da banca: ${response.statusCode}');
-        log('Detalhes: $errorMessage');
-        return false;
+          "X-HTTP-Method-Override": "PATCH"
+        },
+      ),
+      data: body);
+        
+    log("Status da resposta: ${response.statusCode}");
+    log("Resposta: ${response.data}");
+    
+    if (response.statusCode == 200) {
+      log('Banca editada com sucesso');
+      return true;
+    } else {
+      var errorMessage = "Erro desconhecido";
+      if (response.data is Map && response.data['errors'] != null) {
+        errorMessage = response.data['errors'].toString();
       }
-    } catch (e) {
-      if (e is DioError) {
-        final dioError = e;
-        if (dioError.response != null) {
-          var errorData = dioError.response!.data;
-          var errorMessage = "Erro desconhecido";
-          
-          if (errorData is Map && errorData['errors'] != null) {
-            errorMessage = errorData['errors'].toString();
-          }
-          
-          log('Erro da API: ${dioError.response!.statusCode}');
-          log('Detalhes: $errorMessage');
-        } else {
-          log('Erro de comunicação: ${dioError.message}');
-        }
-      }
-      log("Erro ao adicionar banca: $e");
+      log('Erro: $errorMessage');
+      log('Erro ao editar a banca: ${response.statusCode}');
       return false;
+    }
+  } catch (e) {
+    if (e is DioError) {
+      final dioError = e;
+      if (dioError.response != null) {
+        var errorData = dioError.response!.data;
+        var errorMessage = "Erro desconhecido";
+        
+        if (errorData is Map && errorData['errors'] != null) {
+          errorMessage = errorData['errors'].toString();
+        }
+        
+        log('Erro da API: ${dioError.response!.statusCode}');
+        log('Detalhes: $errorMessage');
+      } else {
+        log('Erro de comunicação: ${dioError.message}');
+      }
+    } else {
+      log("Erro não tratado na edição: $e");
+    }
+    log("Erro completo na edição: $e");
+    return false;
+  }
+}
+
+  // Adicione esta função ao MyStoreRepository
+  Map<String, Map<String, String>> normalizarDiasSemana(Map<String, Map<String, String>> horarios) {
+    Map<String, Map<String, String>> result = {};
+    
+    // Mapeamento de nomes de dias
+    Map<String, String> diasCorretos = {
+      'segunda': 'segunda-feira',
+      'terca': 'terca-feira',
+      'quarta': 'quarta-feira',
+      'quinta': 'quinta-feira',
+      'sexta': 'sexta-feira',
+      'sabado': 'sábado',
+      'domingo': 'domingo'
+    };
+    
+    // Converter os dias para o formato correto
+    horarios.forEach((dia, valores) {
+      String diaCorreto = diasCorretos[dia] ?? dia;
+      result[diaCorreto] = valores;
+    });
+    
+    return result;
+  }
+
+  Future<bool> adicionarBanca(
+  String nome,
+  String horarioAbertura,
+  String horarioFechamento,
+  String precoMin,
+  String feiraId,
+  String? imgPath,
+  List<bool> isSelected,
+  bool? entrega,
+  String? pix,
+  Map<String, Map<String, String>>? horariosFuncionamento) async {
+  formasPagamento = '';
+  checkItems = [];
+  
+  if (isSelected.every((element) => element == false)) {
+    log("Erro: Nenhuma forma de pagamento selecionada");
+    return false;
+  }
+  
+  // Tratamento do preço
+  String preMinimo = "";
+  if (precoMin.isNotEmpty) {
+    const find = "R\$";
+    const replace = "";
+    var pMinimo = precoMin.replaceAll(find, replace);
+    preMinimo = pMinimo.replaceAll(",", ".");
+  }
+
+  // Verificar formas de pagamento selecionadas
+  for (int i = 0; i < isSelected.length; i++) {
+    if (isSelected[i] == true) {
+      checkItems.add((i + 1).toString());
     }
   }
+  
+  for (int i = 0; i < checkItems.length; i++) {
+    formasPagamento += '${checkItems[i]},';
+  }
+  
+  // Remove a última vírgula da string
+  if (formasPagamento.isNotEmpty) {
+    formasPagamento = formasPagamento.substring(0, formasPagamento.length - 1);
+  }
+  
+  String? userToken = await userStorage.getUserToken();
+  if (userToken == null || userToken.isEmpty) {
+    log("Erro: Token de usuário não encontrado");
+    return false;
+  }
+  
+  String? userId = await userStorage.getUserId();
+  if (userId == null || userId.isEmpty) {
+    log("Erro: ID de usuário não encontrado");
+    return false;
+  }
+  
+  try {
+    // Verificar e converter o ID da feira
+    int? feiraIdNum;
+    
+    if (!RegExp(r'^[0-9]+$').hasMatch(feiraId)) {
+      if (feiras.isEmpty) {
+        await getFeiras();
+        if (feiras.isEmpty) {
+          log("Erro: Não foi possível carregar a lista de feiras");
+          return false;
+        }
+      }
+      
+      bool feiraEncontrada = false;
+      for (var f in feiras) {
+        if (f.nome == feiraId) {
+          feiraIdNum = f.id;
+          feiraEncontrada = true;
+          log("Feira encontrada: ID ${f.id} para nome '${f.nome}'");
+          break;
+        }
+      }
+      
+      if (!feiraEncontrada) {
+        log("Aviso: Feira não encontrada pelo nome '$feiraId'. Usando a primeira feira disponível.");
+        if (feiras.isNotEmpty) {
+          feiraIdNum = feiras.first.id;
+        } else {
+          log("Erro: Nenhuma feira disponível");
+          return false;
+        }
+      }
+    } else {
+      feiraIdNum = int.tryParse(feiraId);
+    }
+    
+    if (feiraIdNum == null) {
+      log("Erro: Não foi possível obter um ID válido para a feira");
+      return false;
+    }
+    
+    // ✅ CORREÇÃO PRINCIPAL: Converter formato de horários para Array
+    Map<String, List<String>> horariosFormatoAPI = {};
+    
+    if (horariosFuncionamento != null) {
+      Map<String, Map<String, String>> horariosNormalizados = normalizarDiasSemana(horariosFuncionamento);
+      
+      horariosNormalizados.forEach((dia, horarios) {
+        log("Processando dia $dia: ${horarios['abertura']} - ${horarios['fechamento']}");
+        if (horarios['abertura']!.isNotEmpty && horarios['fechamento']!.isNotEmpty) {
+          // ✅ FORMATO CORRETO: Array com [abertura, fechamento]
+          horariosFormatoAPI[dia] = [horarios['abertura']!, horarios['fechamento']!];
+          log("Dia $dia convertido para formato API: [${horarios['abertura']}, ${horarios['fechamento']}]");
+        }
+      });
+    }
+    
+    // Se nenhum horário específico foi configurado, usar horário geral para todos os dias
+    if (horariosFormatoAPI.isEmpty && horarioAbertura.isNotEmpty && horarioFechamento.isNotEmpty) {
+      log("Usando horário geral para todos os dias: $horarioAbertura - $horarioFechamento");
+      horariosFormatoAPI = {
+        'segunda-feira': [horarioAbertura, horarioFechamento],
+        'terca-feira': [horarioAbertura, horarioFechamento],
+        'quarta-feira': [horarioAbertura, horarioFechamento],
+        'quinta-feira': [horarioAbertura, horarioFechamento],
+        'sexta-feira': [horarioAbertura, horarioFechamento],
+        'sábado': [horarioAbertura, horarioFechamento],
+        'domingo': [horarioAbertura, horarioFechamento],
+      };
+    }
+    
+    // Log dos horários sendo enviados no formato correto
+    log("Horários no formato API: ${jsonEncode(horariosFormatoAPI)}");
+    
+    // Campos obrigatórios para adicionar banca
+    Map<String, dynamic> formFields = {
+      "nome": nome,
+      "descricao": 'loja',
+      "horario_abertura": horarioAbertura,
+      "horario_fechamento": horarioFechamento,
+      "formas_pagamento": formasPagamento,
+      "agricultor_id": userId.toString(),
+      "feira_id": feiraIdNum.toString(),
+    };
+    
+    // ✅ ADICIONAR HORÁRIOS NO FORMATO CORRETO
+    if (horariosFormatoAPI.isNotEmpty) {
+      formFields["horarios_funcionamento"] = jsonEncode(horariosFormatoAPI);
+      log("Horários adicionados ao formFields: ${jsonEncode(horariosFormatoAPI)}");
+    } else {
+      log("⚠️ Nenhum horário configurado - será enviado null");
+    }
+    
+    // Adiciona imagem se foi fornecida
+    if (imgPath != null) {
+      try {
+        String fileName = imgPath.split(Platform.pathSeparator).last;
+        formFields["imagem"] = await MultipartFile.fromFile(
+          imgPath,
+          filename: fileName,
+        );
+        log("Imagem adicionada: $fileName");
+      } catch (e) {
+        log("Erro ao carregar imagem: $e");
+      }
+    }
+    
+    // Adiciona entrega como campo obrigatório
+    formFields["entrega"] = entrega == true ? "true" : "false";
+    
+    // Adiciona preço mínimo se entrega estiver habilitada
+    if (entrega == true && preMinimo.isNotEmpty) {
+      formFields["preco_minimo"] = preMinimo;
+    }
+    
+    // Adiciona PIX se fornecido
+    if (pix != null && pix.isNotEmpty) {
+      formFields["pix"] = pix;
+    }
+
+    body = FormData.fromMap(formFields);
+    
+    // Log detalhado dos campos sendo enviados
+    Map<String, dynamic> logFields = Map.from(formFields);
+    logFields.removeWhere((key, value) => value is MultipartFile);
+    log("=== CAMPOS SENDO ENVIADOS PARA API ===");
+    log(jsonEncode(logFields));
+
+    Response response = await _dio.post(
+      '$kBaseURL/bancas',
+      options: Options(headers: {
+        "Content-Type": "multipart/form-data",
+        "Authorization": "Bearer $userToken"
+      }),
+      data: body,
+    );
+
+    log("Resposta da API: ${response.statusCode}");
+    log("Dados da resposta: ${response.data}");
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      log('✅ Cadastro da banca bem sucedido');
+      return true;
+    } else {
+      var errorMessage = "Erro desconhecido";
+      if (response.data is Map && response.data['errors'] != null) {
+        errorMessage = response.data['errors'].toString();
+      }
+      log('❌ Erro no cadastro da banca: ${response.statusCode}');
+      log('Detalhes: $errorMessage');
+      return false;
+    }
+  } catch (e) {
+    if (e is DioError) {
+      final dioError = e;
+      if (dioError.response != null) {
+        var errorData = dioError.response!.data;
+        var errorMessage = "Erro desconhecido";
+        
+        if (errorData is Map && errorData['errors'] != null) {
+          errorMessage = errorData['errors'].toString();
+        }
+        
+        log('❌ Erro da API: ${dioError.response!.statusCode}');
+        log('Detalhes: $errorMessage');
+      } else {
+        log('❌ Erro de comunicação: ${dioError.message}');
+      }
+    }
+    log("❌ Erro ao adicionar banca: $e");
+    return false;
+  }
+}
 }

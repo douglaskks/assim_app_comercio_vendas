@@ -52,7 +52,7 @@ class OrdersRepository extends GetxController {
           }
 
           // Ordenar os pedidos pela data
-          orders.sort((a, b) => a.dataPedido!.compareTo(b.dataPedido!));
+          orders.sort((a, b) => b.dataPedido!.compareTo(a.dataPedido!));
 
           return orders;
         } else {

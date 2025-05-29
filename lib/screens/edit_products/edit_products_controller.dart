@@ -9,17 +9,17 @@ import 'package:thunderapp/screens/home/home_screen_repository.dart';
 import 'package:thunderapp/shared/constants/app_enums.dart';
 import 'package:thunderapp/shared/core/models/banca_model.dart';
 import 'package:thunderapp/shared/core/models/products_model.dart';
-
 import 'package:thunderapp/shared/core/models/table_products_model.dart';
 import 'package:thunderapp/shared/core/user_storage.dart';
-
 import 'edit_products_repository.dart';
 
 class EditProductsController extends GetxController {
   ScreenState screenState = ScreenState.idle;
 
-  // Informações para o post de cadastro de produtos.
-
+  // ✅ CORREÇÃO: Armazenar cópia profunda do produto original
+  late ProductsModel _originalProduct;
+  
+  // Informações atuais para edição
   String? description;
   String? title;
   String measure = 'unidade';
@@ -35,49 +35,77 @@ class EditProductsController extends GetxController {
   List<TableProductsModel> tableProducts = [];
   GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
-  // -----------------------
-  EditProductsController(ProductsModel model) {
-    description = model.descricao;
-    title = model.titulo;
-    productId = model.id;
-    stock = model.estoque;
-    costPrice = "1.00";
-    salePrice = model.preco.toString();
-  }
-  HomeScreenRepository homeRepository =
-      HomeScreenRepository();
+  // ✅ CORREÇÃO: Controllers únicos para cada instância
+  late TextEditingController _stockController;
+  late TextEditingController _saleController;
+  late TextEditingController _descriptionController;
+  late TextEditingController _titleController;
+
+  // Repositories
+  HomeScreenRepository homeRepository = HomeScreenRepository();
   UserStorage userStorage = UserStorage();
-
-  EditProductsRepository repository =
-      EditProductsRepository();
+  EditProductsRepository repository = EditProductsRepository();
   List<TableProductsModel> products = [];
-  final TextEditingController _stockController =
-      TextEditingController();
 
+  // Formatador de moeda
   CurrencyTextInputFormatter currencyFormatter =
-      CurrencyTextInputFormatter.currency(
-          locale: 'pt-Br', symbol: 'R\$');
+      CurrencyTextInputFormatter.currency(locale: 'pt-Br', symbol: 'R\$');
 
-  final TextEditingController _saleController =
-      TextEditingController();
+  // Getters para os controllers
+  TextEditingController get saleController => _saleController;
+  TextEditingController get titleController => _titleController;
+  TextEditingController get descriptionController => _descriptionController;
+  TextEditingController get stockController => _stockController;
 
-  final TextEditingController _descriptionController =
-      TextEditingController();
+  // ✅ CONSTRUTOR CORRIGIDO - Cria cópia profunda e inicializa controllers
+  EditProductsController(ProductsModel model) {
+    // ✅ Criar cópia profunda do produto original
+    _originalProduct = ProductsModel.fromJson(model.toJson());
+    
+    // ✅ Inicializar controllers únicos
+    _stockController = TextEditingController();
+    _saleController = TextEditingController();
+    _descriptionController = TextEditingController();
+    _titleController = TextEditingController();
+    
+    // ✅ RESET completo de todos os valores
+    _resetControllerState();
+    
+    // Inicializar com valores do produto ORIGINAL
+    description = _originalProduct.descricao;
+    title = _originalProduct.titulo;
+    productId = _originalProduct.id;
+    stock = _originalProduct.estoque;
+    costPrice = "1.00";
+    salePrice = _originalProduct.preco?.toString();
+    measure = _originalProduct.tipoMedida ?? 'Unidade';
+    
+    log('=== CONTROLLER INICIALIZADO ===');
+    log('Produto ID: ${_originalProduct.id}');
+    log('Título Original: ${_originalProduct.titulo}');
+    log('Descrição Original: ${_originalProduct.descricao}');
+    log('Estoque Original: ${_originalProduct.estoque}');
+    log('Preço Original: ${_originalProduct.preco}');
+    log('Medida Original: ${_originalProduct.tipoMedida}');
+    log('================================');
+  }
 
-  final TextEditingController _titleController =
-      TextEditingController();
-
-  TextEditingController get saleController =>
-      _saleController;
-
-  TextEditingController get titleController =>
-      _titleController;
-
-  TextEditingController get descriptionController =>
-      _descriptionController;
-
-  TextEditingController get stockController =>
-      _stockController;
+  // ✅ NOVO: Método para resetar completamente o estado
+  void _resetControllerState() {
+    description = null;
+    title = null;
+    measure = 'unidade';
+    productId = null;
+    stock = null;
+    costPrice = null;
+    salePrice = null;
+    hasImage = false;
+    tableProducts.clear();
+    products.clear();
+    screenState = ScreenState.idle;
+    
+    log('Estado do controller resetado completamente');
+  }
 
   double changeProfit(String salePrice, String costPrice) {
     salePrice = salePrice
@@ -89,10 +117,8 @@ class EditProductsController extends GetxController {
 
     double profit = 0.0;
     if (salePrice.isNotEmpty && costPrice.isNotEmpty) {
-      profit =
-          double.parse(salePrice) - double.parse(costPrice);
+      profit = double.parse(salePrice) - double.parse(costPrice);
     }
-
     return profit;
   }
 
@@ -107,220 +133,261 @@ class EditProductsController extends GetxController {
   }
 
   void setDescription() {
-    description = descriptionController.text;
+    description = _descriptionController.text.trim();
+    log('Descrição alterada para: $description');
     update();
   }
 
   void setTitle() {
-    title = titleController.text;
+    title = _titleController.text.trim();
+    log('Título alterado para: $title');
     update();
   }
 
   void setMeasure(String value) {
     measure = value;
+    log('Medida alterada para: $measure');
     update();
   }
 
   void setStock() {
-    String value = stockController.text
+    String value = _stockController.text
         .replaceAll(RegExp(r'[^0-9,.]'), '')
         .replaceAll(',', '.');
     if (value.isNotEmpty) {
-      stock = int.parse(value);
+      stock = int.tryParse(value);
     }
+    log('Estoque alterado para: $stock');
     update();
   }
 
   void setSalePrice() {
-  // Remover símbolos de moeda (R$), espaços e substituir vírgulas por pontos
-  salePrice = _saleController.text
-      .replaceAll('R\$', '')
-      .replaceAll(' ', '')
-      .replaceAll(RegExp(r'[^0-9,.]'), '')
-      .replaceAll(',', '.');
-  
-  // Garantir que é um número decimal válido
-  try {
-    double value = double.parse(salePrice!);
-    salePrice = value.toString(); // Formato decimal padrão com ponto
-  } catch (e) {
-    // Se não for possível converter, manter o valor como está
-    log('Erro ao converter preço para decimal: $e');
+    String cleanPrice = _saleController.text
+        .replaceAll('R\$', '')
+        .replaceAll(' ', '')
+        .replaceAll(RegExp(r'[^0-9,.]'), '')
+        .replaceAll(',', '.');
+    
+    if (cleanPrice.isNotEmpty) {
+      try {
+        double value = double.parse(cleanPrice);
+        salePrice = value.toString();
+        log('Preço de venda alterado para: $salePrice');
+      } catch (e) {
+        log('Erro ao converter preço para decimal: $e');
+        salePrice = null;
+      }
+    } else {
+      salePrice = null;
+    }
+    update();
   }
-  
-  update();
-}
 
+  // ✅ VALIDAÇÃO CORRIGIDA - com logs detalhados
   Future<bool> validateEmptyFields() async {
-  try {
-    log('Iniciando validação de campos...');
-    
-    // Verificar se o ID do produto existe (necessário para a edição)
-    if (productId == null) {
-      log('Erro: ID do produto não fornecido. Operação cancelada.');
-      return false;
-    }
-    
-    // Criando um mapa dos valores originais e atuais para comparação
-    log('Verificando campos alterados...');
-    
-    Map<String, dynamic> changedFields = {};
-    bool hasChanges = false;
-    
-    // Verificar título
-    if (_titleController.text.isNotEmpty) {
-      log('Campo título preenchido: ${_titleController.text}');
-      changedFields['titulo'] = _titleController.text;
-      hasChanges = true;
-    } else {
-      log('Campo título vazio. Usando valor original: $title');
-    }
-    
-    // Verificar descrição
-    if (_descriptionController.text.isNotEmpty) {
-      log('Campo descrição preenchido: ${_descriptionController.text}');
-      changedFields['descricao'] = _descriptionController.text;
-      hasChanges = true;
-    } else {
-      log('Campo descrição vazio. Usando valor original: $description');
-    }
-    
-    // Verificar unidade de medida
-    if (measure.isNotEmpty) {
-      log('Campo medida preenchido: $measure');
-      changedFields['tipo_medida'] = measure;
-      hasChanges = true;
-    } else {
-      log('Campo medida vazio. Esse campo é obrigatório.');
-      return false;
-    }
-    
-    // Verificar estoque
-    if (_stockController.text.isNotEmpty) {
-      log('Campo estoque preenchido: ${_stockController.text}');
-      try {
-        String value = _stockController.text
-            .replaceAll(RegExp(r'[^0-9,.]'), '')
-            .replaceAll(',', '.');
-        int stockValue = int.parse(value);
-        changedFields['estoque'] = stockValue;
-        hasChanges = true;
-      } catch (e) {
-        log('Erro ao converter valor de estoque: $e');
+    try {
+      log('=== INICIANDO VALIDAÇÃO ===');
+      log('Produto Original ID: ${_originalProduct.id}');
+      log('Produto Original Título: ${_originalProduct.titulo}');
+      
+      if (_originalProduct.id == null) {
+        log('❌ ERRO: ID do produto original não encontrado');
         return false;
       }
-    } else {
-      log('Campo estoque vazio. Usando valor original: $stock');
-    }
-    
-    // Verificar preço de venda
-    if (_saleController.text.isNotEmpty) {
-      log('Campo preço de venda preenchido: ${_saleController.text}');
-      try {
-        String value = _saleController.text
-            .replaceAll(RegExp(r'[^0-9,.]'), '')
-            .replaceAll(',', '.');
-        changedFields['preco'] = value;
+
+      // ✅ Criar payload apenas com campos alterados
+      Map<String, dynamic> payload = {};
+      bool hasChanges = false;
+
+      // Verificar título
+      String currentTitle = _titleController.text.trim();
+      log('Título atual no controller: "$currentTitle"');
+      log('Título original: "${_originalProduct.titulo}"');
+      
+      if (currentTitle.isNotEmpty && currentTitle != (_originalProduct.titulo ?? '')) {
+        payload['titulo'] = currentTitle;
         hasChanges = true;
-      } catch (e) {
-        log('Erro ao converter valor de preço de venda: $e');
-        return false;
+        log('✅ Título será alterado: $currentTitle');
       }
-    } else {
-      log('Campo preço de venda vazio. Usando valor original: $salePrice');
-    }
-    
-    // Verificar preço de custo (provavelmente usando um valor padrão)
-    if (costPrice != null && costPrice!.isNotEmpty) {
-      log('Campo preço de custo presente: $costPrice');
-      changedFields['custo'] = costPrice;
-      hasChanges = true;
-    } else {
-      log('Campo preço de custo vazio. Usando valor padrão: 1.00');
-      changedFields['custo'] = "1.00";
-    }
-    
-    // Sempre incluir disponibilidade
-    changedFields['disponivel'] = true;
-    
-    // Verificar se algum campo foi alterado
-    if (!hasChanges) {
-      log('Nenhum campo foi alterado. Operação cancelada.');
-      return false;
-    }
-    
-    // Enviando dados alterados para o repositório
-    log('Campos alterados: $changedFields');
-    log('Enviando requisição para API...');
-    
-    // Substitua pela chamada real ao repositório quando estiver pronto
-    // Para esse exemplo, estamos criando um corpo de requisição personalizado
-    var response = await repository.editProductsWithChanges(this, changedFields);
-    
-    if (response) {
-      log('Produto atualizado com sucesso!');
-      return true;
-    } else {
-      log('Falha ao atualizar o produto.');
-      return false;
-    }
-  } catch (e) {
-    if (e is DioError) {
-      final dioError = e;
-      if (dioError.response != null) {
-        final errorMessage = dioError.response!.data['errors'];
-        log('Erro de API: $errorMessage');
-        log('Detalhes do erro: ${e.toString()}');
+
+      // Verificar descrição
+      String currentDescription = _descriptionController.text.trim();
+      log('Descrição atual no controller: "$currentDescription"');
+      log('Descrição original: "${_originalProduct.descricao}"');
+      
+      if (currentDescription.isNotEmpty && currentDescription != (_originalProduct.descricao ?? '')) {
+        payload['descricao'] = currentDescription;
+        hasChanges = true;
+        log('✅ Descrição será alterada: $currentDescription');
+      }
+
+      // Verificar unidade de medida
+      if (measure.isNotEmpty && measure != (_originalProduct.tipoMedida ?? 'Unidade')) {
+        payload['tipo_medida'] = measure;
+        hasChanges = true;
+        log('✅ Medida será alterada: $measure');
       } else {
-        log('Erro de conexão: ${e.toString()}');
+        // Sempre incluir tipo_medida se existir
+        payload['tipo_medida'] = measure.isNotEmpty ? measure : 'Unidade';
       }
-    } else {
-      log('Erro inesperado: ${e.toString()}');
+
+      // Verificar estoque
+      String currentStockText = _stockController.text.trim();
+      log('Estoque atual no controller: "$currentStockText"');
+      log('Estoque original: ${_originalProduct.estoque}');
+      
+      if (currentStockText.isNotEmpty) {
+        try {
+          int currentStock = int.parse(currentStockText.replaceAll(RegExp(r'[^0-9]'), ''));
+          if (currentStock != (_originalProduct.estoque ?? 0)) {
+            payload['estoque'] = currentStock;
+            hasChanges = true;
+            log('✅ Estoque será alterado: $currentStock');
+          }
+        } catch (e) {
+          log('❌ Erro ao converter estoque: $e');
+          return false;
+        }
+      }
+
+      // Verificar preço de venda
+      String currentPriceText = _saleController.text.trim();
+      log('Preço atual no controller: "$currentPriceText"');
+      log('Preço original: ${_originalProduct.preco}');
+      
+      if (currentPriceText.isNotEmpty) {
+        try {
+          String cleanPrice = currentPriceText
+              .replaceAll('R\$', '')
+              .replaceAll(' ', '')
+              .replaceAll(RegExp(r'[^0-9,.]'), '')
+              .replaceAll(',', '.');
+          
+          double currentPrice = double.parse(cleanPrice);
+          if ((currentPrice - (_originalProduct.preco ?? 0.0)).abs() > 0.01) { // Comparação com tolerância
+            payload['preco'] = cleanPrice;
+            hasChanges = true;
+            log('✅ Preço será alterado: $cleanPrice');
+          }
+        } catch (e) {
+          log('❌ Erro ao converter preço: $e');
+          return false;
+        }
+      }
+
+      // Sempre incluir disponibilidade
+      payload['disponivel'] = true;
+
+      log('=== RESULTADO DA VALIDAÇÃO ===');
+      log('Tem alterações: $hasChanges');
+      log('Payload final: $payload');
+      log('==============================');
+
+      // ✅ Se nenhum campo foi alterado, não fazer requisição
+      if (!hasChanges) {
+        log('✅ Nenhum campo foi alterado. Produto já está atualizado.');
+        return true;
+      }
+
+      // ✅ Usar ID do produto original
+      var response = await repository.editProductsWithChanges(this, payload);
+      
+      if (response) {
+        log('✅ Produto atualizado com sucesso!');
+        return true;
+      } else {
+        log('❌ Falha ao atualizar o produto');
+        return false;
+      }
+      
+    } catch (e) {
+      log('❌ Erro durante validação: ${e.toString()}');
+      return false;
     }
-    return false;
   }
-}
 
   Future<List<TableProductsModel>> loadList() async {
-    SharedPreferences prefs =
-        await SharedPreferences.getInstance();
-    List<String> listaString =
-        prefs.getStringList('listaProdutosTabelados') ?? [];
-    return listaString
-        .map((string) => TableProductsModel.fromJson(
-            json.decode(string)))
-        .toList();
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      List<String> listaString = prefs.getStringList('listaProdutosTabelados') ?? [];
+      return listaString
+          .map((string) => TableProductsModel.fromJson(json.decode(string)))
+          .toList();
+    } catch (e) {
+      log('Erro ao carregar lista de produtos tabelados: $e');
+      return [];
+    }
   }
 
   TableProductsModel? search(int? tableProId) {
-    for (int i = 0; i < tableProducts.length; i++) {
-      if (tableProducts[i].id == tableProId) {
-        return tableProducts[i];
-      }
+    try {
+      return tableProducts.firstWhere((product) => product.id == tableProId);
+    } catch (e) {
+      log('Produto tabelado não encontrado para ID: $tableProId');
+      return null;
     }
-    return null;
   }
 
+  // ✅ onInit CORRIGIDO - Inicialização segura e com logs
   @override
   Future<void> onInit() async {
     super.onInit();
-    tableProducts = await loadList();
-
-    _titleController.text = title ?? '';
-    _descriptionController.text = description ?? '';
-    _stockController.text = stock?.toString() ?? '';
     
-    // Mostrar o preço formatado para o usuário, mas mantendo o valor original
-    if (salePrice != null && salePrice!.isNotEmpty) {
-      try {
-        double price = double.parse(salePrice!);
-        // Usar o formato de moeda apenas para visualização
-        _saleController.text = "R\$ ${price.toStringAsFixed(2)}".replaceAll('.', ',');
-      } catch (e) {
-        _saleController.text = salePrice ?? '';
+    try {
+      log('=== INICIANDO onInit ===');
+      log('Produto Original ID: ${_originalProduct.id}');
+      
+      // ✅ Carregar produtos tabelados
+      tableProducts = await loadList();
+      log('Produtos tabelados carregados: ${tableProducts.length}');
+
+      // ✅ Inicializar campos de texto com valores ORIGINAIS
+      _titleController.text = _originalProduct.titulo ?? '';
+      _descriptionController.text = _originalProduct.descricao ?? '';
+      _stockController.text = _originalProduct.estoque?.toString() ?? '';
+      
+      // ✅ Inicializar unidade de medida
+      measure = _originalProduct.tipoMedida ?? 'Unidade';
+      
+      // ✅ Inicializar preço formatado de forma segura
+      if (_originalProduct.preco != null && _originalProduct.preco! > 0) {
+        String precoFormatado = "R\$ ${_originalProduct.preco!.toStringAsFixed(2)}".replaceAll('.', ',');
+        _saleController.text = precoFormatado;
+      } else {
+        _saleController.text = '';
       }
+      
+      log('=== CAMPOS INICIALIZADOS ===');
+      log('Título Controller: "${_titleController.text}"');
+      log('Descrição Controller: "${_descriptionController.text}"');
+      log('Estoque Controller: "${_stockController.text}"');
+      log('Medida: "$measure"');
+      log('Preço Controller: "${_saleController.text}"');
+      log('============================');
+      
+    } catch (e) {
+      log('❌ Erro durante inicialização: ${e.toString()}');
     }
     
     update();
+  }
+
+  @override
+  void onClose() {
+    log('=== FECHANDO CONTROLLER ===');
+    log('Produto ID: ${_originalProduct.id}');
+    
+    // ✅ Limpar controllers para evitar memory leaks
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _stockController.dispose();
+    _saleController.dispose();
+    
+    // ✅ Limpar listas
+    tableProducts.clear();
+    products.clear();
+    
+    log('Controller limpo com sucesso');
+    super.onClose();
   }
 }

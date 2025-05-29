@@ -85,25 +85,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           backgroundImage: controller.bancaModel?.id == null
                               ? null
                               : Image.network(
-                                  '$kBaseURL/bancas/${controller.bancaModel?.id}/imagem',
+                                  '$kBaseURL/bancas/${controller.bancaModel?.id}/imagem?t=${DateTime.now().millisecondsSinceEpoch}',
                                   headers: {
-                                    "Authorization":
-                                        "Bearer ${controller.userToken}"
+                                    "Authorization": "Bearer ${controller.userToken}"
                                   },
-                                  loadingBuilder: (BuildContext context,
-                                      Widget child,
-                                      ImageChunkEvent? loadingProgress) {
+                                  loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
                                     if (loadingProgress == null) {
                                       return child;
                                     }
                                     return CircularProgressIndicator(
-                                      value: loadingProgress
-                                                  .expectedTotalBytes !=
-                                              null
-                                          ? loadingProgress
-                                                  .cumulativeBytesLoaded /
-                                              loadingProgress
-                                                  .expectedTotalBytes!
+                                      value: loadingProgress.expectedTotalBytes != null
+                                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
                                           : null,
                                     );
                                   },
