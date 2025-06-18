@@ -257,8 +257,10 @@ class _CustomTextFormFieldTimeState extends State<CustomTextFormFieldTime> {
           filled: true,
           fillColor: Colors.white,
           hintText: widget.hintText,
-          hintStyle: TextStyle(fontSize: size.height * 0.02),
-          suffixIcon: widget.isPassword == true
+          hintStyle: TextStyle(
+            fontSize: size.height * 0.02,
+            color: Colors.grey.withOpacity(0.9), // Adicione esta linha
+          ),          suffixIcon: widget.isPassword == true
               ? InkWell(
                   onTap: () => _toggleVisibility(),
                   child: Icon(

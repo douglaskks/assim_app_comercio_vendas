@@ -37,10 +37,10 @@ class _DropDownQtdEditProductState extends State<DropDownQtdEditProduct> {
   @override
   void initState() {
     super.initState();
-    // ✅ Inicializar com valor do produto se existir
-    if (widget.model?.tipoMedida != null && 
-        dropOpcoes.contains(widget.model!.tipoMedida)) {
-      dropValue.value = widget.model!.tipoMedida!;
+    // ✅ CORREÇÃO: Verificação segura com null check
+    String? tipoMedida = widget.model?.tipoMedida;
+    if (tipoMedida != null && dropOpcoes.contains(tipoMedida)) {
+      dropValue.value = tipoMedida;
     }
   }
 
@@ -73,15 +73,23 @@ class _DropDownQtdEditProductState extends State<DropDownQtdEditProduct> {
                   return ValueListenableBuilder(
                     valueListenable: dropValue,
                     builder: (BuildContext context, String value, _) {
-                      // ✅ Usar o valor do controller se disponível
+                      // ✅ CORREÇÃO: Verificação segura sem null check operator
                       String? currentValue;
+                      
+                      // Prioridade 1: Valor do controller se válido
                       if (controller.measure.isNotEmpty && dropOpcoes.contains(controller.measure)) {
                         currentValue = controller.measure;
-                      } else if (value.isNotEmpty) {
+                      } 
+                      // Prioridade 2: Valor do dropdown se válido
+                      else if (value.isNotEmpty && dropOpcoes.contains(value)) {
                         currentValue = value;
-                      } else if (widget.model?.tipoMedida != null && 
-                                dropOpcoes.contains(widget.model!.tipoMedida!)) {
-                        currentValue = widget.model!.tipoMedida!;
+                      } 
+                      // Prioridade 3: Valor original do modelo se válido
+                      else {
+                        String? modelTipoMedida = widget.model?.tipoMedida;
+                        if (modelTipoMedida != null && dropOpcoes.contains(modelTipoMedida)) {
+                          currentValue = modelTipoMedida;
+                        }
                       }
 
                       return DropdownButtonFormField<String>(
@@ -92,15 +100,17 @@ class _DropDownQtdEditProductState extends State<DropDownQtdEditProduct> {
                           size: size.width * 0.05,
                         ),
                         hint: Text(
-                          widget.model?.tipoMedida?.toString() ?? 'Selecionar',
+                          widget.model?.tipoMedida ?? 'Selecionar',
                           style: TextStyle(fontSize: size.height * 0.018),
                         ),
                         value: currentValue,
                         onChanged: (escolha) {
-                          setState(() {
-                            dropValue.value = escolha.toString();
-                            widget.controller.setMeasure(escolha.toString());
-                          });
+                          if (escolha != null) {
+                            setState(() {
+                              dropValue.value = escolha;
+                              widget.controller.setMeasure(escolha);
+                            });
+                          }
                         },
                         items: dropOpcoes
                             .map(
@@ -114,15 +124,14 @@ class _DropDownQtdEditProductState extends State<DropDownQtdEditProduct> {
                           errorStyle: TextStyle(fontSize: 12),
                         ),
                         validator: (dropValue) {
-                          // ✅ CORREÇÃO: Validação inteligente
-                          // Se o produto já tem uma unidade de medida, não é obrigatório selecionar novamente
+                          // ✅ CORREÇÃO: Validação mais segura
                           if (dropValue == null || dropValue.isEmpty) {
-                            // Se não tem valor selecionado E não tem valor original, então é obrigatório
-                            if (widget.model?.tipoMedida == null || 
-                                widget.model!.tipoMedida!.isEmpty) {
+                            String? originalMedida = widget.model?.tipoMedida;
+                            // Se não tem valor selecionado E não tem valor original válido
+                            if (originalMedida == null || originalMedida.isEmpty) {
                               return 'Obrigatório';
                             }
-                            // Se tem valor original, usar ele (não é erro)
+                            // Se tem valor original válido, não é erro
                             return null;
                           }
                           return null;

@@ -60,10 +60,9 @@ class _SaleInfosState extends State<SaleInfos> {
                   child: Container(
                     alignment: Alignment.center,
                     child: CustomTextFormField(
-                      hintText:
-                          widget.productsModel!.descricao,
-                      erroStyle:
-                          const TextStyle(fontSize: 12),
+                      // ✅ CORREÇÃO: Nome do produto deve usar titulo
+                      hintText: widget.productsModel!.titulo,  // "Acerola madura"
+                      erroStyle: const TextStyle(fontSize: 12),
                       validatorError: (value) {
                         if (value.isEmpty) {
                           return 'Obrigatório';
@@ -71,12 +70,12 @@ class _SaleInfosState extends State<SaleInfos> {
                       },
                       onChanged: (value) {
                         setState(() {
-                          widget.controller
-                              .setDescription();
+                          // ✅ CORREÇÃO: Nome do produto chama setTitle()
+                          widget.controller.setTitle();
                         });
                       },
-                      controller: widget
-                          .controller.descriptionController,
+                      // ✅ CORREÇÃO: Nome do produto usa titleController
+                      controller: widget.controller.titleController,
                     ),
                   ),
                 ),
@@ -109,9 +108,9 @@ class _SaleInfosState extends State<SaleInfos> {
                 margin: EdgeInsets.zero,
                 child: ClipPath(
                   child: CustomTextFormField(
-                    hintText: widget.productsModel!.titulo,
-                    erroStyle:
-                        const TextStyle(fontSize: 12),
+                    // ✅ CORREÇÃO: Descrição deve usar descricao
+                    hintText: widget.productsModel!.descricao,  // "Acerola boa"
+                    erroStyle: const TextStyle(fontSize: 12),
                     validatorError: (value) {
                       if (value.isEmpty) {
                         return 'Obrigatório';
@@ -119,11 +118,12 @@ class _SaleInfosState extends State<SaleInfos> {
                     },
                     onChanged: (value) {
                       setState(() {
-                        widget.controller.setTitle();
+                        // ✅ CORREÇÃO: Descrição chama setDescription()
+                        widget.controller.setDescription();
                       });
                     },
-                    controller:
-                        widget.controller.titleController,
+                    // ✅ CORREÇÃO: Descrição usa descriptionController
+                    controller: widget.controller.descriptionController,
                   ),
                 ),
               ),
@@ -161,8 +161,7 @@ class _SaleInfosState extends State<SaleInfos> {
                     alignment: Alignment.center,
                     child: CustomTextFormFieldCurrency(
                       keyboardType: TextInputType.number,
-                      erroStyle:
-                          const TextStyle(fontSize: 12),
+                      erroStyle: const TextStyle(fontSize: 12),
                       validatorError: (value) {
                         if (value.isEmpty) {
                           return 'Obrigatório';
@@ -182,8 +181,7 @@ class _SaleInfosState extends State<SaleInfos> {
                         ),
                         LengthLimitingTextInputFormatter(9),
                       ],
-                      controller:
-                          widget.controller.saleController,
+                      controller: widget.controller.saleController,
                     ),
                   ),
                 ),

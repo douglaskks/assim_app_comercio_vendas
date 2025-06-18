@@ -138,23 +138,58 @@ class EditProductsRepository extends GetxController {
       }
       
     } catch (e) {
-      // ✅ LOGS APENAS EM DEBUG - Completamente removidos em produção
       if (kDebugMode) {
         debugPrint('=== ERRO DURANTE EDIÇÃO ===');
         
-        // ✅ Tratamento compatível com diferentes versões do Dio
+        // ✅ Dio 4.x usa DioError
         if (e is DioError) {
           final dioError = e;
+          
+          // Verificar se há resposta do servidor
           if (dioError.response != null) {
             debugPrint('❌ Erro de API - Status: ${dioError.response!.statusCode}');
-            debugPrint('❌ Erro de API - Corpo: ${dioError.response!.data}');
-            debugPrint('❌ Erro de API - Headers: ${dioError.response!.headers}');
+            debugPrint('❌ Erro de API - Dados: ${dioError.response!.data}');
+            debugPrint('❌ Erro de API - Mensagem: ${dioError.response!.statusMessage}');
+            
+            // Extrair mensagem de erro específica se disponível
+            if (dioError.response!.data is Map) {
+              var errorData = dioError.response!.data as Map;
+              if (errorData.containsKey('message')) {
+                debugPrint('❌ Mensagem do servidor: ${errorData['message']}');
+              }
+              if (errorData.containsKey('errors')) {
+                debugPrint('❌ Erros de validação: ${errorData['errors']}');
+              }
+            }
           } else {
-            debugPrint('❌ Erro de conexão: ${dioError.message}');
-            debugPrint('❌ Tipo do erro: ${dioError.type}');
+            // Erro de conexão/rede
+            debugPrint('❌ Erro de conexão - Tipo: ${dioError.type}');
+            debugPrint('❌ Erro de conexão - Mensagem: ${dioError.message}');
+            
+            // Tipos específicos de erro do Dio 4.x
+            switch (dioError.type) {
+              case DioErrorType.connectTimeout:
+                debugPrint('❌ Timeout de conexão');
+                break;
+              case DioErrorType.sendTimeout:
+                debugPrint('❌ Timeout de envio');
+                break;
+              case DioErrorType.receiveTimeout:
+                debugPrint('❌ Timeout de recebimento');
+                break;
+              case DioErrorType.response:
+                debugPrint('❌ Erro de resposta do servidor');
+                break;
+              case DioErrorType.cancel:
+                debugPrint('❌ Requisição cancelada');
+                break;
+              case DioErrorType.other:
+                debugPrint('❌ Outro tipo de erro');
+                break;
+            }
           }
         } else {
-          debugPrint('❌ Erro inesperado: ${e.toString()}');
+          debugPrint('❌ Erro não relacionado ao Dio: ${e.toString()}');
         }
         
         debugPrint('============================');
