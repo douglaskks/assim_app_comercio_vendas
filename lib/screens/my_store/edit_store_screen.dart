@@ -13,6 +13,7 @@ import 'package:thunderapp/shared/core/models/banca_model.dart';
 import '../../components/forms/custom_text_form_field.dart';
 import '../../shared/components/dialogs/default_alert_dialog.dart';
 import 'components/circle_image_profile.dart';
+import 'dart:developer';
 
 //TELA ASSIM - Edição de banca
 class EditStoreScreen extends StatefulWidget {
@@ -142,7 +143,10 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                                           alignment: Alignment.center,
                                           child: CustomTextFormField(
                                             autoValidate: AutovalidateMode.onUserInteraction,
-                                            hintText: widget.bancaModel?.nome ?? '',
+                                            // ✅ CORREÇÃO: Não usar hintText para dados existentes, o controller já tem o valor
+                                            hintText: controller.nomeBancaController.text.isEmpty 
+                                                ? 'Digite o nome da banca' 
+                                                : null,
                                             erroStyle: const TextStyle(fontSize: 12),
                                             validatorError: (value) {
                                               if (value.isNotEmpty && value.length < 3) {
@@ -329,7 +333,10 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                                                 }
                                                 return null;
                                               },
-                                              hintText: widget.bancaModel?.pix ?? "Chave Pix",
+                                              // ✅ CORREÇÃO: Só usar hintText se o campo estiver vazio
+                                              hintText: controller.pixController.text.isEmpty 
+                                                  ? "Digite a chave PIX" 
+                                                  : null,
                                               controller: controller.pixController,
                                             ),
                                           ),
@@ -406,43 +413,59 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                                 child: PrimaryButton(
                                   text: 'Salvar',
                                   onPressed: () async {
-                                    print("Validando formulário...");
+                                    log("=== INICIANDO PROCESSO DE SALVAMENTO ===");
+                                    log("Validando formulário...");
+                                    
                                     if (controller.formKey.currentState?.validate() ?? false) {
-                                      print("Formulário validado com sucesso.");
+                                      log("✅ Formulário validado com sucesso.");
                                       
+                                      // ✅ CORREÇÃO: Validação mais robusta
                                       if (controller.verifySelectedFields()) {
-                                        // Em vez de mostrar diálogo, mostrar um indicador de carregamento
+                                        log("✅ Campos selecionados válidos.");
+                                        
+                                        // Mostrar loading
                                         showDialog(
                                           context: context,
                                           barrierDismissible: false,
                                           builder: (context) => const Center(child: CircularProgressIndicator()),
                                         );
                                         
-                                        // CORREÇÃO: Usar o método correto
-                                        bool success = await controller.editBancaComHorarios(context, widget.bancaModel!);
-                                        
-                                        // Fechar o diálogo de carregamento se ainda montado
-                                        if (mounted) {
-                                          Navigator.of(context).pop();
+                                        try {
+                                          // ✅ CORREÇÃO: Usar o método corrigido
+                                          bool success = await controller.editBancaComHorarios(context, widget.bancaModel!);
                                           
-                                          if (success) {
-                                            showDialog(
-                                              context: context,
-                                              builder: (context) => DefaultAlertDialogOneButton(
-                                                title: 'Êxito',
-                                                body: 'Suas informações foram alteradas com sucesso',
-                                                confirmText: 'Ok',
-                                                onConfirm: () {
-                                                  Get.offAll(() => const HomeScreen());
-                                                },
-                                                buttonColor: kAlertColor,
-                                              ),
-                                            );
-                                          } else {
-                                            _showSnackbar(context, "Erro ao editar a banca. Verifique os campos e tente novamente.");
+                                          // Fechar loading se ainda montado
+                                          if (mounted) {
+                                            Navigator.of(context).pop();
+                                            
+                                            if (success) {
+                                              log("✅ Edição realizada com sucesso!");
+                                              showDialog(
+                                                context: context,
+                                                builder: (context) => DefaultAlertDialogOneButton(
+                                                  title: 'Sucesso',
+                                                  body: 'Suas informações foram alteradas com sucesso',
+                                                  confirmText: 'Ok',
+                                                  onConfirm: () {
+                                                    Get.offAll(() => const HomeScreen());
+                                                  },
+                                                  buttonColor: kSuccessColor, // ✅ CORREÇÃO: Usar cor de sucesso
+                                                ),
+                                              );
+                                            } else {
+                                              log("❌ Falha na edição da banca");
+                                              _showSnackbar(context, "Nenhuma alteração foi feita ou ocorreu um erro. Verifique os campos e tente novamente.");
+                                            }
+                                          }
+                                        } catch (e) {
+                                          log("❌ Erro durante o salvamento: $e");
+                                          if (mounted) {
+                                            Navigator.of(context).pop(); // Fechar loading
+                                            _showSnackbar(context, "Erro inesperado. Tente novamente.");
                                           }
                                         }
                                       } else {
+                                        log("❌ Validação de campos falhou: ${controller.textoErro}");
                                         showDialog(
                                           context: context,
                                           builder: (context) => DefaultAlertDialogOneButton(
@@ -455,7 +478,8 @@ class _EditStoreScreenState extends State<EditStoreScreen> {
                                         );
                                       }
                                     } else {
-                                      print("Formulário não validado.");
+                                      log("❌ Formulário não validado.");
+                                      _showSnackbar(context, "Por favor, corrija os erros nos campos destacados.");
                                     }
                                   }
                                 ),

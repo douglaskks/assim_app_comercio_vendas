@@ -315,44 +315,43 @@ class MyStoreRepository {
     formFields["descricao"] = "loja";
     
     // Processar horários de funcionamento específicos
+    // ✅ CORREÇÃO: Processar horários com validação rigorosa
+    Map<String, List<String>> horariosFormatoAPI = {};
+
     if (horariosFuncionamento != null && horariosFuncionamento.isNotEmpty) {
-      // ✅ CONVERTER para formato Array que a API espera
-      Map<String, List<String>> horariosFormatoAPI = {};
+      log("=== PROCESSANDO HORÁRIOS ESPECÍFICOS ===");
       
       horariosFuncionamento.forEach((dia, horarios) {
-        if (horarios['abertura']!.isNotEmpty && horarios['fechamento']!.isNotEmpty) {
-          // Formato correto: Array [abertura, fechamento]
-          horariosFormatoAPI[dia] = [horarios['abertura']!, horarios['fechamento']!];
+        String abertura = horarios['abertura'] ?? '';
+        String fechamento = horarios['fechamento'] ?? '';
+        
+        log("Processando $dia: abertura='$abertura', fechamento='$fechamento'");
+        
+        // ✅ VALIDAÇÃO RIGOROSA: Verificar formato HH:MM
+        if (_validarFormatoHorario(abertura) && _validarFormatoHorario(fechamento)) {
+          horariosFormatoAPI[dia] = [abertura, fechamento];
+          log("✅ Horário válido para $dia: [$abertura, $fechamento]");
+        } else {
+          log("❌ Horário inválido para $dia: abertura='$abertura', fechamento='$fechamento'");
         }
       });
       
       if (horariosFormatoAPI.isNotEmpty) {
         formFields["horarios_funcionamento"] = jsonEncode(horariosFormatoAPI);
-        log("Horários específicos para edição: ${jsonEncode(horariosFormatoAPI)}");
+        log("Horários específicos enviados: ${jsonEncode(horariosFormatoAPI)}");
         
-        // Usar o primeiro horário como horário geral
+        // Usar o primeiro horário válido como horário geral
         var primeiroHorario = horariosFormatoAPI.values.first;
         formFields["horario_abertura"] = primeiroHorario[0];
         formFields["horario_fechamento"] = primeiroHorario[1];
+        log("Horários gerais definidos a partir do primeiro horário: ${primeiroHorario[0]} - ${primeiroHorario[1]}");
       } else {
-        // Usar getters do modelo
-        formFields["horario_abertura"] = horarioAbertura.isNotEmpty 
-            ? horarioAbertura 
-            : banca.getHorarioAbertura;
-        
-        formFields["horario_fechamento"] = horarioFechamento.isNotEmpty 
-            ? horarioFechamento 
-            : banca.getHorarioFechamento;
+        log("⚠️ Nenhum horário específico válido, usando horários gerais ou originais");
+        _definirHorariosGerais(formFields, horarioAbertura, horarioFechamento, banca);
       }
     } else {
-      // Usar getters do modelo
-      formFields["horario_abertura"] = horarioAbertura.isNotEmpty 
-          ? horarioAbertura 
-          : banca.getHorarioAbertura;
-      
-      formFields["horario_fechamento"] = horarioFechamento.isNotEmpty 
-          ? horarioFechamento 
-          : banca.getHorarioFechamento;
+      log("=== USANDO HORÁRIOS GERAIS ===");
+      _definirHorariosGerais(formFields, horarioAbertura, horarioFechamento, banca);
     }
     
     if (precoMin.isNotEmpty) formFields["preco_minimo"] = precoMinimo;
@@ -383,58 +382,103 @@ class MyStoreRepository {
     body = FormData.fromMap(formFields);
     
     Map<String, dynamic> encodableFields = Map.from(formFields);
-    encodableFields.removeWhere((key, value) => value is MultipartFile);
-    log("Campos para edição: ${jsonEncode(encodableFields)}");
-    log("URL: $kBaseURL/bancas/${banca.getId}"); // ADAPTADO: usar getter
+      encodableFields.removeWhere((key, value) => value is MultipartFile);
+      log("Campos para edição: ${jsonEncode(encodableFields)}");
+      log("URL: $kBaseURL/bancas/${banca.getId}"); // ADAPTADO: usar getter
 
-    Response response = await _dio.post('$kBaseURL/bancas/${banca.getId}',
-      options: Options(
-        headers: {
-          "Authorization": "Bearer $userToken",
-          "Content-Type": "multipart/form-data",
-          "X-HTTP-Method-Override": "PATCH"
-        },
-      ),
-      data: body);
-        
-    log("Status da resposta: ${response.statusCode}");
-    log("Resposta: ${response.data}");
-    
-    if (response.statusCode == 200) {
-      log('Banca editada com sucesso');
-      return true;
-    } else {
-      var errorMessage = "Erro desconhecido";
-      if (response.data is Map && response.data['errors'] != null) {
-        errorMessage = response.data['errors'].toString();
+      Response response = await _dio.post('$kBaseURL/bancas/${banca.getId}',
+        options: Options(
+          headers: {
+            "Authorization": "Bearer $userToken",
+            "Content-Type": "multipart/form-data",
+            "X-HTTP-Method-Override": "PATCH"
+          },
+        ),
+        data: body);
+          
+      log("Status da resposta: ${response.statusCode}");
+      log("Resposta: ${response.data}");
+      
+      if (response.statusCode == 200) {
+        log('Banca editada com sucesso');
+        return true;
+      } else {
+        var errorMessage = "Erro desconhecido";
+        if (response.data is Map && response.data['errors'] != null) {
+          errorMessage = response.data['errors'].toString();
+        }
+        log('Erro: $errorMessage');
+        log('Erro ao editar a banca: ${response.statusCode}');
+        return false;
       }
-      log('Erro: $errorMessage');
-      log('Erro ao editar a banca: ${response.statusCode}');
+    } catch (e) {
+      if (e is DioError) {
+        final dioError = e;
+        if (dioError.response != null) {
+          var errorData = dioError.response!.data;
+          var errorMessage = "Erro desconhecido";
+          
+          if (errorData is Map && errorData['errors'] != null) {
+            errorMessage = errorData['errors'].toString();
+          }
+          
+          log('Erro da API: ${dioError.response!.statusCode}');
+          log('Detalhes: $errorMessage');
+        } else {
+          log('Erro de comunicação: ${dioError.message}');
+        }
+      } else {
+        log("Erro não tratado na edição: $e");
+      }
+      log("Erro completo na edição: $e");
       return false;
     }
-  } catch (e) {
-    if (e is DioError) {
-      final dioError = e;
-      if (dioError.response != null) {
-        var errorData = dioError.response!.data;
-        var errorMessage = "Erro desconhecido";
-        
-        if (errorData is Map && errorData['errors'] != null) {
-          errorMessage = errorData['errors'].toString();
-        }
-        
-        log('Erro da API: ${dioError.response!.statusCode}');
-        log('Detalhes: $errorMessage');
-      } else {
-        log('Erro de comunicação: ${dioError.message}');
-      }
-    } else {
-      log("Erro não tratado na edição: $e");
-    }
-    log("Erro completo na edição: $e");
-    return false;
   }
-}
+
+  // Método para validar formato de horário
+  bool _validarFormatoHorario(String horario) {
+    if (horario.isEmpty) return false;
+    
+    // Regex para formato HH:MM (exemplo: 08:00, 18:30)
+    final regex = RegExp(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$');
+    bool valido = regex.hasMatch(horario);
+    
+    if (!valido) {
+      log("❌ Formato inválido para horário: '$horario'");
+    }
+    
+    return valido;
+  }
+
+  // Método para definir horários gerais com fallback
+  void _definirHorariosGerais(Map<String, dynamic> formFields, String horarioAbertura, String horarioFechamento, BancaModel banca) {
+    String aberturaFinal = '';
+    String fechamentoFinal = '';
+    
+    // Tentar usar horários dos parâmetros primeiro
+    if (_validarFormatoHorario(horarioAbertura) && _validarFormatoHorario(horarioFechamento)) {
+      aberturaFinal = horarioAbertura;
+      fechamentoFinal = horarioFechamento;
+      log("Usando horários dos parâmetros: $aberturaFinal - $fechamentoFinal");
+    } 
+    // Fallback para horários originais da banca
+    else if (_validarFormatoHorario(banca.horarioAbertura ?? '') && _validarFormatoHorario(banca.horarioFechamento ?? '')) {
+      aberturaFinal = banca.horarioAbertura!;
+      fechamentoFinal = banca.horarioFechamento!;
+      log("Usando horários originais da banca: $aberturaFinal - $fechamentoFinal");
+    }
+    // Último recurso: horários padrão
+    else {
+      aberturaFinal = '08:00';
+      fechamentoFinal = '18:00';
+      log("⚠️ Usando horários padrão: $aberturaFinal - $fechamentoFinal");
+    }
+    
+    formFields["horario_abertura"] = aberturaFinal;
+    formFields["horario_fechamento"] = fechamentoFinal;
+    
+    log("Horários gerais definidos: abertura='$aberturaFinal', fechamento='$fechamentoFinal'");
+  }
 
   // Adicione esta função ao MyStoreRepository
   Map<String, Map<String, String>> normalizarDiasSemana(Map<String, Map<String, String>> horarios) {

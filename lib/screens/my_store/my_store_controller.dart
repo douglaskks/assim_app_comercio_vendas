@@ -13,8 +13,6 @@ import '../../shared/components/dialogs/default_alert_dialog.dart';
 import '../../shared/constants/style_constants.dart';
 import '../../shared/core/image_picker_controller.dart';
 import '../home/home_screen.dart';
-import 'package:thunderapp/screens/home/home_screen_controller.dart'; // Adicione esta linha
-import '../screens_index.dart';
 
 class MyStoreController extends GetxController {
   UserStorage userStorage = UserStorage();
@@ -131,74 +129,129 @@ class MyStoreController extends GetxController {
     log("Formas de pagamento: '${banca.formasDePagamento}'");
     log("PIX: '${banca.pix}'");
     log("Faz entrega: ${banca.fazEntrega}");
+    log("Horário abertura original: '${banca.horarioAbertura}'");
+    log("Horário fechamento original: '${banca.horarioFechamento}'");
+    log("Horários funcionamento: ${banca.horariosFuncionamento}");
     
     // ✅ Carregar dados básicos
     _nomeBancaController.text = banca.nome ?? '';
     _pixController.text = banca.pix ?? '';
-    _quantiaMinController.text = banca.precoMin ?? '';
     
-    // ✅ Carregar horários gerais
-    _horarioAberturaController.text = banca.horarioAbertura ?? '';
-    _horarioFechamentoController.text = banca.horarioFechamento ?? '';
-    
-    // ✅ Carregar horários específicos por dia se existirem
-    if (banca.horariosFuncionamento != null && banca.horariosFuncionamento!.isNotEmpty) {
+    // ✅ CORREÇÃO: Formatar preço mínimo corretamente
+    if (banca.precoMin != null && banca.precoMin!.isNotEmpty) {
       try {
-        Map<String, dynamic> horarios = banca.horariosFuncionamento!;
-        
-        // Resetar arrays
-        diasSelecionados = List.filled(7, false);
-        horariosFuncionamento = {
-          'segunda-feira': {'abertura': '', 'fechamento': ''},
-          'terca-feira': {'abertura': '', 'fechamento': ''},
-          'quarta-feira': {'abertura': '', 'fechamento': ''},
-          'quinta-feira': {'abertura': '', 'fechamento': ''},
-          'sexta-feira': {'abertura': '', 'fechamento': ''},
-          'sábado': {'abertura': '', 'fechamento': ''},
-          'domingo': {'abertura': '', 'fechamento': ''},
-        };
-        
-        // Carregar horários específicos
-        horarios.forEach((dia, valores) {
-          if (valores is Map && valores['abertura'] != null && valores['fechamento'] != null) {
-            String abertura = valores['abertura'].toString();
-            String fechamento = valores['fechamento'].toString();
-            
-            if (abertura.isNotEmpty && fechamento.isNotEmpty) {
-              String diaCorreto = _normalizarNomeDia(dia);
-              
-              horariosFuncionamento[diaCorreto] = {
-                'abertura': abertura,
-                'fechamento': fechamento
-              };
-              
-              int index = _obterIndiceDia(diaCorreto);
-              if (index >= 0) {
-                diasSelecionados[index] = true;
-              }
-            }
-          }
-        });
+        double valor = double.parse(banca.precoMin!.replaceAll(',', '.'));
+        _quantiaMinController.text = 'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}';
+        log("Preço mínimo formatado: ${_quantiaMinController.text}");
       } catch (e) {
-        log("Erro ao carregar horários específicos: $e");
-        _carregarHorariosGeraisParaTodosOsDias();
+        log("Erro ao formatar preço: $e");
+        _quantiaMinController.text = banca.precoMin ?? '';
       }
     } else {
+      _quantiaMinController.text = '';
+    }
+    
+    // ✅ CORREÇÃO: Sempre carregar horários gerais PRIMEIRO
+    String horarioAberturaOriginal = banca.horarioAbertura ?? '';
+    String horarioFechamentoOriginal = banca.horarioFechamento ?? '';
+    
+    _horarioAberturaController.text = horarioAberturaOriginal;
+    _horarioFechamentoController.text = horarioFechamentoOriginal;
+    
+    log("Horários gerais carregados: abertura='$horarioAberturaOriginal', fechamento='$horarioFechamentoOriginal'");
+    
+    // ✅ CORREÇÃO: Resetar arrays ANTES de processar
+    diasSelecionados = List.filled(7, false);
+    horariosFuncionamento = {
+      'segunda-feira': {'abertura': '', 'fechamento': ''},
+      'terca-feira': {'abertura': '', 'fechamento': ''},
+      'quarta-feira': {'abertura': '', 'fechamento': ''},
+      'quinta-feira': {'abertura': '', 'fechamento': ''},
+      'sexta-feira': {'abertura': '', 'fechamento': ''},
+      'sábado': {'abertura': '', 'fechamento': ''},
+      'domingo': {'abertura': '', 'fechamento': ''},
+    };
+    
+    // ✅ NOVA LÓGICA: Processar horários específicos ou usar horários gerais
+    bool temHorariosEspecificos = false;
+    
+    if (banca.horariosFuncionamento != null && banca.horariosFuncionamento!.isNotEmpty) {
+      try {
+        Map<String, dynamic> horariosOriginais = banca.horariosFuncionamento!;
+        log("Processando horários específicos: $horariosOriginais");
+        
+        horariosOriginais.forEach((dia, valores) {
+          String abertura = '';
+          String fechamento = '';
+          
+          // ✅ CORREÇÃO: Suportar diferentes formatos de horários da API
+          if (valores is Map) {
+            // Formato: {'abertura': '08:00', 'fechamento': '18:00'}
+            abertura = valores['abertura']?.toString() ?? '';
+            fechamento = valores['fechamento']?.toString() ?? '';
+          } else if (valores is List && valores.length >= 2) {
+            // Formato: ['08:00', '18:00']
+            abertura = valores[0]?.toString() ?? '';
+            fechamento = valores[1]?.toString() ?? '';
+          }
+          
+          // ✅ VALIDAÇÃO: Verificar se horários estão no formato correto
+          if (_validarFormatoHorario(abertura) && _validarFormatoHorario(fechamento)) {
+            String diaCorreto = _normalizarNomeDia(dia);
+            
+            horariosFuncionamento[diaCorreto] = {
+              'abertura': abertura,
+              'fechamento': fechamento
+            };
+            
+            int index = _obterIndiceDia(diaCorreto);
+            if (index >= 0) {
+              diasSelecionados[index] = true;
+              temHorariosEspecificos = true;
+              log("Dia $diaCorreto configurado: $abertura - $fechamento");
+            }
+          } else {
+            log("⚠️ Horários inválidos para $dia: abertura='$abertura', fechamento='$fechamento'");
+          }
+        });
+        
+      } catch (e) {
+        log("Erro ao processar horários específicos: $e");
+        temHorariosEspecificos = false;
+      }
+    }
+    
+    // ✅ FALLBACK: Se não tem horários específicos válidos, usar horários gerais
+    if (!temHorariosEspecificos && 
+        _validarFormatoHorario(horarioAberturaOriginal) && 
+        _validarFormatoHorario(horarioFechamentoOriginal)) {
+      log("Aplicando horários gerais para todos os dias");
       _carregarHorariosGeraisParaTodosOsDias();
     }
     
-    // ✅ CORREÇÃO PRINCIPAL: Carregar formas de pagamento ANTES de configurar entrega
+    // ✅ CARREGAR formas de pagamento
     _carregarFormasPagamentoCorrigido(banca);
     
-    // ✅ Carregar configurações de entrega
+    // ✅ CARREGAR configurações de entrega
     deliver = banca.fazEntrega ?? false;
     _atualizarCheckboxEntrega();
     
     log("=== DADOS CARREGADOS COM SUCESSO ===");
+    log("Horários específicos carregados: $temHorariosEspecificos");
+    log("Dias selecionados: $diasSelecionados");
     log("Estado final - Dinheiro: ${isSelected[0]}, PIX: ${isSelected[1]}, Cartão: ${isSelected[2]}");
     log("pixBool: $pixBool, deliver: $deliver");
     
     update();
+  }
+
+  // ADICIONAR NOVO MÉTODO - Validação de formato de horário
+  bool _validarFormatoHorario(String horario) {
+    if (horario.isEmpty) return false;
+    
+    // Regex para formato HH:MM (exemplo: 08:00, 18:30)
+    final regex = RegExp(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$');
+    return regex.hasMatch(horario);
   }
 
   // ✅ NOVA FUNÇÃO CORRIGIDA para carregar formas de pagamento
@@ -468,43 +521,373 @@ class MyStoreController extends GetxController {
   }
 
   Future<bool> editBancaComHorarios(BuildContext context, BancaModel banca) async {
-      try {
-        // Verificações adicionais
-        if (nomeBancaController.text.isEmpty && 
-            !verificarDiasSelecionados() &&
-            quantiaMinController.text.isEmpty && 
-            _imagePath == null) {
-          print("Nenhum campo foi alterado");
-          return false;
-        }
+    try {
+      log("=== INICIANDO EDIÇÃO DA BANCA ===");
+      log("Nome atual no controller: '${nomeBancaController.text}'");
+      log("PIX atual no controller: '${pixController.text}'");
+      log("Quantidade mínima no controller: '${quantiaMinController.text}'");
+      log("Horário abertura no controller: '${horarioAberturaController.text}'");
+      log("Horário fechamento no controller: '${horarioFechamentoController.text}'");
+      
+      // ✅ CORREÇÃO: Verificar se há ALGUMA alteração (mais flexível)
+      bool temAlteracao = _verificarSeTemAlteracao(banca);
+      
+      if (!temAlteracao) {
+        log("Nenhuma alteração detectada nos campos");
+        return false;
+      }
 
-        // Se nenhum dia específico foi configurado mas há horários gerais, aplicar para todos
-        if (!verificarDiasSelecionados() && 
-            horarioAberturaController.text.isNotEmpty && 
-            horarioFechamentoController.text.isNotEmpty) {
-          _carregarHorariosGeraisParaTodosOsDias();
-        }
+      // ✅ CORREÇÃO: Validar e limpar horários antes de enviar
+      Map<String, Map<String, String>> horariosValidados = _validarELimparHorarios(banca);
+      
+      log("Horários validados a serem enviados: $horariosValidados");
 
-        editSucess = await myStoreRepository.editarBancaComHorarios(
-          nomeBancaController.text.trim(),
-          horarioAberturaController.text.trim(),
-          horarioFechamentoController.text.trim(),
-          quantiaMinController.text.trim(),
-          feira,
-          _imagePath,
-          isSelected,
-          pixController.text.trim(),
-          deliver,
-          banca,
-          horariosFuncionamento // Passar os horários específicos
-        );
-        
-        return editSucess;
-      } catch (e) {
-        print("Erro ao editar banca: $e");
+      editSucess = await myStoreRepository.editarBancaComHorarios(
+        nomeBancaController.text.trim(),
+        horarioAberturaController.text.trim(),
+        horarioFechamentoController.text.trim(),
+        quantiaMinController.text.trim(),
+        feira,
+        _imagePath,
+        isSelected,
+        pixController.text.trim(),
+        deliver,
+        banca,
+        horariosValidados // ✅ Passar horários validados
+      );
+      
+      log("Resultado da edição: $editSucess");
+      return editSucess;
+    } catch (e) {
+      log("Erro ao editar banca: $e");
+      return false;
+    }
+  }
+
+  // ✅ NOVO MÉTODO: Verificar campos que foram preenchidos
+bool _verificarCamposNovos(BancaModel banca) {
+  // PIX preenchido mas não existia antes
+  if (pixController.text.trim().isNotEmpty && 
+      (banca.pix == null || banca.pix!.trim().isEmpty)) {
+    log("Novo PIX adicionado: '${pixController.text.trim()}'");
+    return true;
+  }
+  
+  // Preço preenchido mas não existia antes
+  double precoAtual = _extrairValorMonetario(quantiaMinController.text);
+  double precoOriginal = _extrairValorMonetario(banca.precoMin ?? '0');
+  
+  if (precoAtual > 0 && precoOriginal == 0) {
+    log("Novo preço mínimo adicionado: '$precoAtual'");
+    return true;
+  }
+  
+  return false;
+}
+
+  // ✅ MÉTODO AUXILIAR MOVIDO PARA FORA
+  double _extrairValorMonetario(String str) {
+    if (str.isEmpty) return 0.0;
+    
+    String limpo = str
+        .replaceAll('R\$', '')
+        .replaceAll(' ', '')
+        .replaceAll(',', '.')
+        .trim();
+    
+    return double.tryParse(limpo) ?? 0.0;
+  }
+
+  // Método para verificar se houve alterações
+  bool _verificarSeTemAlteracao(BancaModel banca) {
+    log("=== VERIFICANDO ALTERAÇÕES ===");
+    
+    // ✅ CORREÇÃO: Normalizar strings para comparação
+    String _normalizar(String? str) {
+      return (str ?? '').trim().toLowerCase();
+    }
+    
+    // ✅ CORREÇÃO: Comparação flexível de valores monetários
+    double _extrairValorMonetario(String str) {
+      if (str.isEmpty) return 0.0;
+      
+      String limpo = str
+          .replaceAll('R\$', '')
+          .replaceAll(' ', '')
+          .replaceAll(',', '.')
+          .trim();
+      
+      return double.tryParse(limpo) ?? 0.0;
+    }
+    
+    // 1. Verificar nome (ignorando case e espaços)
+    String nomeAtual = _normalizar(nomeBancaController.text);
+    String nomeOriginal = _normalizar(banca.nome);
+    
+    if (nomeAtual != nomeOriginal && nomeAtual.isNotEmpty) {
+      log("✅ Nome alterado: '$nomeOriginal' -> '$nomeAtual'");
+      return true;
+    }
+    
+    // 2. Verificar PIX (ignorando case e espaços)
+    String pixAtual = _normalizar(pixController.text);
+    String pixOriginal = _normalizar(banca.pix);
+    
+    if (pixAtual != pixOriginal) {
+      log("✅ PIX alterado: '$pixOriginal' -> '$pixAtual'");
+      return true;
+    }
+    
+    // 3. Verificar preço mínimo (comparação numérica)
+    double precoAtual = _extrairValorMonetario(quantiaMinController.text);
+    double precoOriginal = _extrairValorMonetario(banca.precoMin ?? '0');
+    
+    // Considerar alteração se diferença for maior que 0.01
+    if ((precoAtual - precoOriginal).abs() > 0.01) {
+      log("✅ Preço alterado: '$precoOriginal' -> '$precoAtual'");
+      return true;
+    }
+    
+    // 4. Verificar horários gerais (normalizar formato)
+    String _normalizarHorario(String? horario) {
+      if (horario == null || horario.isEmpty) return '';
+      
+      // Garantir formato HH:MM
+      String limpo = horario.trim();
+      if (limpo.length == 4 && limpo.contains(':')) {
+        // Formato H:MM -> HH:MM
+        if (limpo.indexOf(':') == 1) {
+          limpo = '0$limpo';
+        }
+      }
+      return limpo;
+    }
+    
+    String aberturaAtual = _normalizarHorario(horarioAberturaController.text);
+    String aberturaOriginal = _normalizarHorario(banca.horarioAbertura);
+    
+    String fechamentoAtual = _normalizarHorario(horarioFechamentoController.text);
+    String fechamentoOriginal = _normalizarHorario(banca.horarioFechamento);
+    
+    if (aberturaAtual != aberturaOriginal && aberturaAtual.isNotEmpty) {
+      log("✅ Horário abertura alterado: '$aberturaOriginal' -> '$aberturaAtual'");
+      return true;
+    }
+    
+    if (fechamentoAtual != fechamentoOriginal && fechamentoAtual.isNotEmpty) {
+      log("✅ Horário fechamento alterado: '$fechamentoOriginal' -> '$fechamentoAtual'");
+      return true;
+    }
+    
+    // 5. Verificar formas de pagamento
+    if (_verificarAlteracaoFormasPagamento(banca)) {
+      log("✅ Formas de pagamento alteradas");
+      return true;
+    }
+    
+    // 6. Verificar entrega
+    bool entregaAtual = deliver;
+    bool entregaOriginal = banca.fazEntrega ?? false;
+    
+    if (entregaAtual != entregaOriginal) {
+      log("✅ Configuração de entrega alterada: '$entregaOriginal' -> '$entregaAtual'");
+      return true;
+    }
+    
+    // 7. Verificar nova imagem
+    if (_imagePath != null && _imagePath!.isNotEmpty) {
+      log("✅ Nova imagem selecionada: $_imagePath");
+      return true;
+    }
+    
+    // 8. Verificar horários específicos por dia
+    if (_verificarAlteracaoHorariosEspecificos(banca)) {
+      log("✅ Horários específicos alterados");
+      return true;
+    }
+    
+    // ✅ NOVA VERIFICAÇÃO: Campo preenchido mas não estava antes
+    if (_verificarCamposNovos(banca)) {
+      log("✅ Novos campos preenchidos");
+      return true;
+    }
+    
+    log("❌ Nenhuma alteração detectada");
+    return false;
+  }
+
+
+
+  // Método para verificar alteração nas formas de pagamento
+  bool _verificarAlteracaoFormasPagamento(BancaModel banca) {
+    log("--- Verificando alteração nas formas de pagamento ---");
+    
+    // ✅ CORREÇÃO: Tratar strings vazias e nulas
+    String formasOriginais = (banca.formasDePagamento ?? '').trim();
+    
+    // Se não havia formas de pagamento originais, considerar dinheiro como padrão
+    List<String> formasOriginaisList = [];
+    if (formasOriginais.isEmpty) {
+      formasOriginaisList = ['1']; // Dinheiro como padrão
+      log("Formas originais vazias, usando dinheiro como padrão");
+    } else {
+      formasOriginaisList = formasOriginais
+          .split(',')
+          .where((f) => f.trim().isNotEmpty)
+          .map((f) => f.trim())
+          .toList();
+    }
+    
+    // ✅ CORREÇÃO: Construir lista atual mais robusta
+    List<String> formasAtuais = [];
+    for (int i = 0; i < isSelected.length; i++) {
+      if (isSelected[i]) {
+        formasAtuais.add((i + 1).toString());
+      }
+    }
+    
+    // ✅ FALLBACK: Se nenhuma forma atual selecionada, manter as originais
+    if (formasAtuais.isEmpty) {
+      log("⚠️ Nenhuma forma de pagamento selecionada, mantendo originais");
+      return false;
+    }
+    
+    // Ordenar para comparação
+    formasOriginaisList.sort();
+    formasAtuais.sort();
+    
+    log("Formas originais: $formasOriginaisList");
+    log("Formas atuais: $formasAtuais");
+    
+    bool alteracao = !_listasIguais(formasOriginaisList, formasAtuais);
+    
+    if (alteracao) {
+      log("✅ Formas de pagamento alteradas");
+    } else {
+      log("Formas de pagamento inalteradas");
+    }
+    
+    return alteracao;
+  }
+
+  // Método auxiliar para comparar listas
+  bool _listasIguais(List<String> lista1, List<String> lista2) {
+    if (lista1.length != lista2.length) {
+      log("Listas têm tamanhos diferentes: ${lista1.length} vs ${lista2.length}");
+      return false;
+    }
+    
+    for (int i = 0; i < lista1.length; i++) {
+      if (lista1[i] != lista2[i]) {
+        log("Diferença no índice $i: '${lista1[i]}' vs '${lista2[i]}'");
         return false;
       }
     }
+    
+    return true;
+  }
+
+  // Método para verificar alteração nos horários específicos
+  bool _verificarAlteracaoHorariosEspecificos(BancaModel banca) {
+    // Se não há horários específicos originais, mas agora há alguns configurados
+    if ((banca.horariosFuncionamento == null || banca.horariosFuncionamento!.isEmpty) &&
+        verificarDiasSelecionados()) {
+      return true;
+    }
+    
+    // Implementar comparação mais detalhada se necessário
+    return false;
+  }
+
+  // Método para validar e limpar horários
+  Map<String, Map<String, String>> _validarELimparHorarios(BancaModel banca) {
+    Map<String, Map<String, String>> horariosLimpos = {};
+    
+    // ✅ CORREÇÃO PRINCIPAL: Se não há dias selecionados, usar horários gerais
+    if (!verificarDiasSelecionados()) {
+      String horarioAbertura = horarioAberturaController.text.trim();
+      String horarioFechamento = horarioFechamentoController.text.trim();
+      
+      // Se horários gerais estão vazios, usar os originais da banca
+      if (horarioAbertura.isEmpty) {
+        horarioAbertura = banca.horarioAbertura ?? '';
+      }
+      if (horarioFechamento.isEmpty) {
+        horarioFechamento = banca.horarioFechamento ?? '';
+      }
+      
+      // Validar formato dos horários gerais
+      if (_validarFormatoHorario(horarioAbertura) && _validarFormatoHorario(horarioFechamento)) {
+        log("Usando horários gerais validados: $horarioAbertura - $horarioFechamento");
+        
+        // Aplicar para todos os dias
+        List<String> diasSemana = ['segunda-feira', 'terca-feira', 'quarta-feira', 
+                                  'quinta-feira', 'sexta-feira', 'sábado', 'domingo'];
+        
+        for (String dia in diasSemana) {
+          horariosLimpos[dia] = {
+            'abertura': horarioAbertura,
+            'fechamento': horarioFechamento
+          };
+        }
+      } else {
+        log("⚠️ Horários gerais inválidos, tentando usar horários originais da banca");
+        // Tentar usar horários originais da banca
+        if (banca.horariosFuncionamento != null) {
+          return _processarHorariosOriginais(banca.horariosFuncionamento!);
+        }
+      }
+    } else {
+      // Processar horários específicos por dia
+      for (int i = 0; i < diasSelecionados.length; i++) {
+        if (diasSelecionados[i]) {
+          String nomeDia = convertIndexToDiaSemana(i);
+          String abertura = horariosFuncionamento[nomeDia]?['abertura'] ?? '';
+          String fechamento = horariosFuncionamento[nomeDia]?['fechamento'] ?? '';
+          
+          if (_validarFormatoHorario(abertura) && _validarFormatoHorario(fechamento)) {
+            horariosLimpos[nomeDia] = {
+              'abertura': abertura,
+              'fechamento': fechamento
+            };
+            log("Horário validado para $nomeDia: $abertura - $fechamento");
+          } else {
+            log("⚠️ Horário inválido para $nomeDia: abertura='$abertura', fechamento='$fechamento'");
+          }
+        }
+      }
+    }
+    
+    return horariosLimpos;
+  }
+
+  // Método para processar horários originais da banca
+  Map<String, Map<String, String>> _processarHorariosOriginais(Map<String, dynamic> horariosOriginais) {
+    Map<String, Map<String, String>> horariosProcessados = {};
+    
+    horariosOriginais.forEach((dia, valores) {
+      String abertura = '';
+      String fechamento = '';
+      
+      if (valores is Map) {
+        abertura = valores['abertura']?.toString() ?? '';
+        fechamento = valores['fechamento']?.toString() ?? '';
+      } else if (valores is List && valores.length >= 2) {
+        abertura = valores[0]?.toString() ?? '';
+        fechamento = valores[1]?.toString() ?? '';
+      }
+      
+      if (_validarFormatoHorario(abertura) && _validarFormatoHorario(fechamento)) {
+        String diaCorreto = _normalizarNomeDia(dia);
+        horariosProcessados[diaCorreto] = {
+          'abertura': abertura,
+          'fechamento': fechamento
+        };
+      }
+    });
+    
+    return horariosProcessados;
+  }
 
     // Validação atualizada para considerar os dias específicos
     bool verifyFieldsForEdit() {

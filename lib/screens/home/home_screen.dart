@@ -82,25 +82,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: <Widget>[
                         CircleAvatar(
-                          backgroundImage: controller.bancaModel?.id == null
-                              ? null
-                              : Image.network(
-                                  '$kBaseURL/bancas/${controller.bancaModel?.id}/imagem?t=${DateTime.now().millisecondsSinceEpoch}',
-                                  headers: {
-                                    "Authorization": "Bearer ${controller.userToken}"
-                                  },
-                                  loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
-                                    if (loadingProgress == null) {
-                                      return child;
-                                    }
-                                    return CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                          : null,
-                                    );
-                                  },
-                                ).image,
                           radius: 38,
+                          backgroundColor: kPrimaryColor.withOpacity(0.2),
+                          child: controller.isReadyForImage
+                              ? ClipOval(
+                                  child: Image.network(
+                                    controller.imageUrl!,
+                                    headers: controller.imageHeaders,
+                                    width: 76,
+                                    height: 76,
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
+                                      if (loadingProgress == null) {
+                                        return child;
+                                      }
+                                      return Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(kPrimaryColor),
+                                          value: loadingProgress.expectedTotalBytes != null
+                                              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                              : null,
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      print("❌ Erro ao carregar imagem da banca: $error");
+                                      return Icon(
+                                        Icons.store,
+                                        size: 30,
+                                        color: kPrimaryColor,
+                                      );
+                                    },
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.store,
+                                  size: 30,
+                                  color: kPrimaryColor,
+                                ),
                         ),
                         const HorizontalSpacerBox(size: SpacerSize.small),
                         SizedBox(
