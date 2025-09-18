@@ -8,6 +8,9 @@ if (localPropertiesFile.exists()) {
 
 def flutterRoot = localProperties.getProperty('flutter.sdk')
 if (flutterRoot == null) {
+    flutterRoot = System.env.FLUTTER_ROOT
+}
+if (flutterRoot == null) {
     throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
 }
 
@@ -32,16 +35,18 @@ if(keystorePropertiesFile.exists()){
 }
 
 android {
-    compileSdkVersion 34
-    ndkVersion flutter.ndkVersion
+    namespace "com.ufape.lmts.assimvendedor"
+    compileSdkVersion 35
+    ndkVersion "29.0.14033849"
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11    // Alterado de 1_8 para 11
-        targetCompatibility JavaVersion.VERSION_11    // Alterado de 1_8 para 11
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
-        jvmTarget = '11'    // Alterado de '1.8' para '11'
+        jvmTarget = '1.8'
     }
 
     sourceSets {
@@ -50,8 +55,8 @@ android {
 
     defaultConfig {
         applicationId "com.ufape.lmts.assimvendedor"
-        minSdkVersion 21    // Especificando explicitamente
-        targetSdkVersion 34 // Alterado para corresponder ao compileSdkVersion
+        minSdkVersion 21
+        targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
@@ -71,11 +76,6 @@ android {
             signingConfig signingConfigs.release
         }
     }
-
-    lintOptions {
-        disable 'InvalidPackage'
-        checkReleaseBuilds false
-    }
 }
 
 flutter {
@@ -83,7 +83,9 @@ flutter {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"    // Atualizado para jdk8
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation 'androidx.core:core:1.10.0'
+    implementation 'androidx.core:core-ktx:1.10.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }
